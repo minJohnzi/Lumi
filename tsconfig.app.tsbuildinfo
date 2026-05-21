@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/vite-env.d.ts","./src/components/chatpanel.tsx","./src/components/desktoppet.tsx","./src/components/live2dpet.tsx","./src/components/settingspanel.tsx","./src/components/statusbadge.tsx","./src/hooks/usepetstate.ts","./src/utils/prefs.ts"],"version":"5.7.3"}

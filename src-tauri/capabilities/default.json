@@ -1,0 +1,10 @@
+{
+  "$schema": "https://github.com/nicegui/tauri-v2-nicegui-template/raw/main/src-tauri/capabilities/default.json",
+  "identifier": "default",
+  "description": "Default capabilities for Lumi",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open"
+  ]
+}
