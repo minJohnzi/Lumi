@@ -7,6 +7,8 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export type ModelType = "live2d" | "sprite";
+
 export interface UserPreferences {
   pet_name: string;
   llm_provider: string;
@@ -14,7 +16,11 @@ export interface UserPreferences {
   llm_model: string;
   screenshot_hide: boolean;
   live2d_enabled: boolean;
+  model_type: ModelType;
   model_path: string;
+  model_name: string;
+  pet_scale: number;
+  always_on_top: boolean;
 }
 
 export interface SystemInfo {

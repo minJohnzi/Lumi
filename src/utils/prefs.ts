@@ -7,7 +7,11 @@ const DEFAULTS: UserPreferences = {
   llm_model: "gpt-4o-mini",
   screenshot_hide: false,
   live2d_enabled: true,
+  model_type: "live2d",
   model_path: "models/haru_greeter_t03/haru_greeter_t03.model3.json",
+  model_name: "Haru",
+  pet_scale: 1.0,
+  always_on_top: true,
 };
 
 export function loadPrefs(): UserPreferences {
