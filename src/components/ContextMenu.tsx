@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import "../styles/context-menu.css";
 
 interface MenuItemDef {
@@ -50,17 +50,19 @@ export default function ContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const subTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Adjust position to stay within screen bounds
-  useEffect(() => {
+  // Adjust position to stay within window bounds (before paint)
+  useLayoutEffect(() => {
     const menu = menuRef.current;
     if (!menu) return;
     const rect = menu.getBoundingClientRect();
     let nx = x;
     let ny = y;
-    if (x + rect.width > window.innerWidth) nx = x - rect.width;
-    if (y + rect.height > window.innerHeight) ny = y - rect.height;
-    setAdjX(Math.max(0, nx));
-    setAdjY(Math.max(0, ny));
+    if (x + rect.width > window.innerWidth) nx = Math.max(0, x - rect.width);
+    if (y + rect.height > window.innerHeight) ny = Math.max(0, y - rect.height);
+    if (nx !== x || ny !== y) {
+      setAdjX(nx);
+      setAdjY(ny);
+    }
   }, [x, y]);
 
   // Click outside to close

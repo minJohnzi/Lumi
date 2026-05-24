@@ -39,7 +39,7 @@ function App() {
     });
   }, [isAlwaysOnTop]);
 
-  // Edge hide: snap to nearest screen edge
+  // Edge hide: snap window edge to nearest screen edge
   const handleEdgeHide = useCallback(() => {
     import("@tauri-apps/api/window").then(async ({ getCurrentWindow, availableMonitors }) => {
       import("@tauri-apps/api/dpi").then(async ({ LogicalPosition }) => {
@@ -49,15 +49,11 @@ function App() {
         const monitors = await availableMonitors();
         if (monitors.length === 0) return;
 
-        // Find the monitor that contains the window, or use primary
         const monitor = monitors.find((m) => {
-          const mx = m.position.x;
-          const my = m.position.y;
-          const mw = m.size.width;
-          const mh = m.size.height;
           const cx = pos.x + size.width / 2;
           const cy = pos.y + size.height / 2;
-          return cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh;
+          return cx >= m.position.x && cx <= m.position.x + m.size.width
+              && cy >= m.position.y && cy <= m.position.y + m.size.height;
         }) ?? monitors[0];
 
         const mLeft = monitor.position.x;
@@ -69,11 +65,12 @@ function App() {
         const distRight = mRight - winRight;
 
         prevPos.current = { x: pos.x, y: pos.y };
-        const SLIVER = 30;
         if (distLeft <= distRight) {
-          await win.setPosition(new LogicalPosition(mLeft - size.width + SLIVER, pos.y));
+          // Snap window left edge to screen left edge
+          await win.setPosition(new LogicalPosition(mLeft, pos.y));
         } else {
-          await win.setPosition(new LogicalPosition(mRight - SLIVER, pos.y));
+          // Snap window right edge to screen right edge
+          await win.setPosition(new LogicalPosition(mRight - size.width, pos.y));
         }
         setIsEdgeHidden(true);
       });
