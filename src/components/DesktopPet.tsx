@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import type { PetState } from "../types";
 import { loadPrefs } from "../utils/prefs";
 import Live2DPet from "./Live2DPet";
+import SpritePet from "./SpritePet";
 
 interface DesktopPetProps {
   state: PetState;
@@ -17,43 +18,53 @@ const stateEmoji: Record<PetState, string> = {
 
 export default function DesktopPet({ state }: DesktopPetProps) {
   const prefs = loadPrefs();
-  const [live2dFailed, setLive2dFailed] = useState(false);
-  const [live2dStatus, setLive2dStatus] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadStatus, setLoadStatus] = useState("");
 
-  // Reset failed state when model path changes — allow retry on new model
+  // Reset failed state when model path or type changes
   useEffect(() => {
-    setLive2dFailed(false);
-    setLive2dStatus("");
-  }, [prefs.model_path]);
+    setLoadFailed(false);
+    setLoadStatus("");
+  }, [prefs.model_path, prefs.model_type]);
 
-  const useLive2D = prefs.live2d_enabled && prefs.model_path && !live2dFailed;
+  const useModel = prefs.live2d_enabled && prefs.model_path && !loadFailed;
 
-  const handleLoadError = useCallback(() => setLive2dFailed(true), []);
+  const handleLoadError = useCallback(() => setLoadFailed(true), []);
   const handleStatus = useCallback((msg: string) => {
     if (msg === "") {
-      setLive2dStatus("");
+      setLoadStatus("");
     } else {
-      setLive2dStatus((prev) => prev + msg + "\n");
+      setLoadStatus((prev) => prev + msg + "\n");
     }
   }, []);
 
   return (
     <div className="pet-container">
-      {useLive2D ? (
-        <Live2DPet
-          key={prefs.model_path}
-          state={state}
-          modelPath={prefs.model_path}
-          onLoadError={handleLoadError}
-          onStatus={handleStatus}
-        />
+      {useModel ? (
+        prefs.model_type === "sprite" ? (
+          <SpritePet
+            key={prefs.model_path}
+            state={state}
+            modelPath={prefs.model_path}
+            onLoadError={handleLoadError}
+            onStatus={handleStatus}
+          />
+        ) : (
+          <Live2DPet
+            key={prefs.model_path}
+            state={state}
+            modelPath={prefs.model_path}
+            onLoadError={handleLoadError}
+            onStatus={handleStatus}
+          />
+        )
       ) : (
         <div className={`pet-avatar pet-${state}`}>
           <span className="pet-emoji">{stateEmoji[state] || stateEmoji.idle}</span>
         </div>
       )}
       <div className="pet-name">{prefs.pet_name}</div>
-      {live2dStatus && (
+      {loadStatus && (
         <div
           style={{
             fontSize: 9,
@@ -67,7 +78,7 @@ export default function DesktopPet({ state }: DesktopPetProps) {
             marginTop: 4,
           }}
         >
-          {live2dStatus}
+          {loadStatus}
         </div>
       )}
     </div>

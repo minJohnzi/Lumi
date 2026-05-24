@@ -48,7 +48,7 @@ export default function ContextMenu({
   const [adjX, setAdjX] = useState(x);
   const [adjY, setAdjY] = useState(y);
   const menuRef = useRef<HTMLDivElement>(null);
-  const subTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const subTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Adjust position to stay within screen bounds
   useEffect(() => {

@@ -9,7 +9,7 @@ function sleep(ms: number) {
  * Register all basic life actions on the scheduler.
  * These are the "70% idle micro-variations" — subtle, slow, natural.
  */
-export function registerBasicActions(scheduler: ActionScheduler, model: any, getState: () => PetState) {
+export function registerBasicActions(scheduler: ActionScheduler, model: any, _getState: () => PetState) {
   // ── Blink ─────────────────────────────────────────────
   scheduler.register({
     name: "blink",

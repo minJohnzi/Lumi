@@ -41,29 +41,42 @@ function App() {
 
   // Edge hide: snap to nearest screen edge
   const handleEdgeHide = useCallback(() => {
-    import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
-      const win = getCurrentWindow();
-      const pos = await win.outerPosition();
-      const size = await win.outerSize();
-      const monitor = await win.currentMonitor();
-      if (!monitor) return;
+    import("@tauri-apps/api/window").then(async ({ getCurrentWindow, availableMonitors }) => {
+      import("@tauri-apps/api/dpi").then(async ({ LogicalPosition }) => {
+        const win = getCurrentWindow();
+        const pos = await win.outerPosition();
+        const size = await win.outerSize();
+        const monitors = await availableMonitors();
+        if (monitors.length === 0) return;
 
-      const mLeft = monitor.position.x;
-      const mRight = monitor.position.x + monitor.size.width;
-      const winLeft = pos.x;
-      const winRight = pos.x + size.width;
+        // Find the monitor that contains the window, or use primary
+        const monitor = monitors.find((m) => {
+          const mx = m.position.x;
+          const my = m.position.y;
+          const mw = m.size.width;
+          const mh = m.size.height;
+          const cx = pos.x + size.width / 2;
+          const cy = pos.y + size.height / 2;
+          return cx >= mx && cx <= mx + mw && cy >= my && cy <= my + mh;
+        }) ?? monitors[0];
 
-      const distLeft = winLeft - mLeft;
-      const distRight = mRight - winRight;
+        const mLeft = monitor.position.x;
+        const mRight = monitor.position.x + monitor.size.width;
+        const winLeft = pos.x;
+        const winRight = pos.x + size.width;
 
-      prevPos.current = { x: pos.x, y: pos.y };
-      const SLIVER = 30;
-      if (distLeft <= distRight) {
-        await win.setPosition({ x: mLeft - size.width + SLIVER, y: pos.y });
-      } else {
-        await win.setPosition({ x: mRight - SLIVER, y: pos.y });
-      }
-      setIsEdgeHidden(true);
+        const distLeft = winLeft - mLeft;
+        const distRight = mRight - winRight;
+
+        prevPos.current = { x: pos.x, y: pos.y };
+        const SLIVER = 30;
+        if (distLeft <= distRight) {
+          await win.setPosition(new LogicalPosition(mLeft - size.width + SLIVER, pos.y));
+        } else {
+          await win.setPosition(new LogicalPosition(mRight - SLIVER, pos.y));
+        }
+        setIsEdgeHidden(true);
+      });
     });
   }, []);
 
@@ -71,10 +84,14 @@ function App() {
   const handlePetAreaClick = useCallback(() => {
     if (!isEdgeHidden) return;
     import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
-      if (prevPos.current) {
-        await getCurrentWindow().setPosition(prevPos.current);
-      }
-      setIsEdgeHidden(false);
+      import("@tauri-apps/api/dpi").then(async ({ LogicalPosition }) => {
+        if (prevPos.current) {
+          await getCurrentWindow().setPosition(
+            new LogicalPosition(prevPos.current.x, prevPos.current.y),
+          );
+        }
+        setIsEdgeHidden(false);
+      });
     });
   }, [isEdgeHidden]);
 
@@ -82,7 +99,9 @@ function App() {
   const handleQuit = useCallback(() => {
     setIsExiting(true);
     setTimeout(() => {
-      import("@tauri-apps/api/process").then(({ exit }) => exit(0));
+      import("@tauri-apps/api/core").then(({ invoke }) => {
+        invoke("exit_app").catch(() => {});
+      });
     }, 300);
   }, []);
 

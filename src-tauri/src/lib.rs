@@ -40,6 +40,7 @@ pub fn run() {
             commands::system::get_screenshot_detect_status,
             commands::system::list_models,
             commands::system::open_settings,
+            commands::system::exit_app,
         ])
         .setup(|app| {
             let settings = MenuItem::with_id(app, "settings", "设置...", true, None::<&str>)?;

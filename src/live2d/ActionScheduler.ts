@@ -1,6 +1,29 @@
 import type { PetState } from "../types";
 
-type ActionName = "blink" | "head_tilt" | "look_away" | "idle_shift";
+export type ActionEvent =
+  | "click"
+  | "hover"
+  | "hover_end"
+  | "chat_start"
+  | "chat_end"
+  | "user_typing"
+  | "user_return"
+  | "idle_timeout_3m"
+  | "idle_timeout_10m"
+  | "time_morning"
+  | "time_midnight";
+
+type ActionName =
+  | "blink"
+  | "head_tilt"
+  | "look_away"
+  | "idle_shift"
+  | "hover_notice"
+  | "click_response"
+  | "attention_enter"
+  | "thinking"
+  | "talking_soft"
+  | "chat_end_return";
 
 interface ScheduledAction {
   name: ActionName;
@@ -10,6 +33,12 @@ interface ScheduledAction {
   execute: () => Promise<void> | void;
   /** Only run in these states (undefined = all) */
   states?: PetState[];
+  /** Run only when this event is triggered. Undefined means automatic scheduling. */
+  trigger?: ActionEvent;
+  /** Additional guard before automatic or event execution. */
+  condition?: () => boolean;
+  /** Minimum idle time before this action can run (ms). */
+  minIdleTime?: number;
   /** Minimum idle time after this action before next one (ms) */
   restAfter?: number;
 }
@@ -32,6 +61,7 @@ export class ActionScheduler {
   private actions: ScheduledAction[] = [];
   private lastActionTime = 0;
   private minRestBetween = 3000; // minimum rest between discrete actions
+  private executingEvent = false;
 
   // Breathing state — uses delta to avoid conflicting with position changes
   private breathStart = 0;
@@ -46,6 +76,26 @@ export class ActionScheduler {
   /** Register an action that the scheduler can run */
   register(action: ScheduledAction) {
     this.actions.push(action);
+  }
+
+  /** Run event-bound actions immediately when interaction or chat events occur. */
+  trigger(event: ActionEvent) {
+    if (!this.running || this.executingEvent) return;
+
+    const now = Date.now();
+    const state = this.getState();
+    const action = this.actions.find((a) => (
+      a.trigger === event &&
+      this.canRun(a, state, now)
+    ));
+
+    if (!action) return;
+
+    this.executingEvent = true;
+    void Promise.resolve(this.runAction(action, now))
+      .finally(() => {
+        this.executingEvent = false;
+      });
   }
 
   /** Start scheduling for the given state (called on state change) */
@@ -94,12 +144,9 @@ export class ActionScheduler {
     // 1. Fits the current state
     // 2. Has its cooldown expired
     // 3. Has passed the minimum rest period
-    const eligible = this.actions.filter((a) => {
-      if (a.states && !a.states.includes(state)) return false;
-      const last = this.cooldowns.get(a.name) ?? 0;
-      const cd = a.cooldown[0] * pace;
-      return now - last >= cd;
-    });
+    const eligible = this.actions.filter((a) => (
+      !a.trigger && this.canRun(a, state, now)
+    ));
 
     if (eligible.length === 0) {
       // No actions eligible — wait a bit and retry
@@ -117,12 +164,7 @@ export class ActionScheduler {
     const delay = Math.max(0, rest - sinceLast);
 
     const t = setTimeout(() => {
-      this.lastActionTime = Date.now();
-      const [minCd, maxCd] = action.cooldown;
-      const cd = minCd + Math.random() * (maxCd - minCd);
-      this.cooldowns.set(action.name, Date.now() + cd * pace);
-
-      action.execute();
+      void this.runAction(action, Date.now());
 
       // Schedule next after the action's rest period
       const restMs = (action.restAfter ?? this.minRestBetween) * pace;
@@ -131,5 +173,22 @@ export class ActionScheduler {
     }, delay);
 
     this.timers.push(t);
+  }
+
+  private canRun(action: ScheduledAction, state: PetState, now: number) {
+    if (action.states && !action.states.includes(state)) return false;
+    if (action.condition && !action.condition()) return false;
+    if (action.minIdleTime && now - this.lastActionTime < action.minIdleTime) return false;
+    const cooldownUntil = this.cooldowns.get(action.name) ?? 0;
+    return now >= cooldownUntil;
+  }
+
+  private async runAction(action: ScheduledAction, now: number) {
+    this.lastActionTime = now;
+    const pace = STATE_PACING[this.getState()] ?? 1.0;
+    const [minCd, maxCd] = action.cooldown;
+    const cd = minCd + Math.random() * (maxCd - minCd);
+    this.cooldowns.set(action.name, now + cd * pace);
+    await action.execute();
   }
 }

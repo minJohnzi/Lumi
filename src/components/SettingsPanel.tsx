@@ -32,7 +32,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         <div className="settings-body">
           <label>
-            宠物名字
+            角色名称
             <input
               value={prefs.pet_name}
               onChange={(e) => update("pet_name", e.target.value)}
