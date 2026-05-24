@@ -58,7 +58,6 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   position: relative;
-  -webkit-app-region: drag;
   cursor: move;
 }
 

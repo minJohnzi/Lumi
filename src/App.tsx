@@ -105,6 +105,14 @@ function App() {
     }, 300);
   }, []);
 
+  // Start window drag on left mouse (replaces data-tauri-drag-region)
+  const handlePetAreaMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+      getCurrentWindow().startDragging();
+    });
+  }, []);
+
   // Right-click handler
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -142,7 +150,7 @@ function App() {
 
         <div
           className={`pet-area${showChat ? " with-chat" : ""}${isEdgeHidden ? " edge-hidden" : ""}`}
-          data-tauri-drag-region
+          onMouseDown={handlePetAreaMouseDown}
           onContextMenu={handleContextMenu}
           onClick={handlePetAreaClick}
           style={{ transform: `scale(${petScale})`, transformOrigin: "center center" }}
