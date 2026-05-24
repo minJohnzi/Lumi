@@ -38,6 +38,8 @@ pub fn run() {
             commands::system::get_system_info,
             commands::system::toggle_screenshot_detect,
             commands::system::get_screenshot_detect_status,
+            commands::system::list_models,
+            commands::system::open_settings,
         ])
         .setup(|app| {
             let settings = MenuItem::with_id(app, "settings", "设置...", true, None::<&str>)?;
@@ -59,10 +61,9 @@ pub fn run() {
                                 WebviewUrl::App("settings.html".into()),
                             )
                             .title("Lumi 设置")
-                            .inner_size(360.0, 480.0)
+                            .inner_size(760.0, 560.0)
                             .resizable(false)
                             .decorations(true)
-                            .always_on_top(true)
                             .center()
                             .build();
                         }
