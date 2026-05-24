@@ -1,0 +1,94 @@
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 180px;
+  padding: 6px;
+  background: rgba(30, 30, 40, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  animation: menu-fade-in 0.15s ease-out;
+  -webkit-app-region: no-drag;
+}
+
+@keyframes menu-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.context-menu-sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.context-menu-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.context-menu-item.has-submenu {
+  cursor: default;
+}
+
+.context-menu-label {
+  font-size: 13px;
+  color: #e0e0e8;
+  line-height: 1.3;
+}
+
+.context-menu-sub {
+  font-size: 11px;
+  color: #6b6b7a;
+}
+
+/* Submenu */
+.context-submenu {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: -6px;
+  min-width: 100px;
+  padding: 6px;
+  background: rgba(30, 30, 40, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  animation: submenu-slide-in 0.12s ease-out;
+}
+
+@keyframes submenu-slide-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.context-submenu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.context-submenu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.context-submenu-item.active .context-menu-label {
+  color: #b8a8f0;
+}
