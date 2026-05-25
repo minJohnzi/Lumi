@@ -187,9 +187,23 @@ function App() {
             wakeUp();
           }}
           onOpenSettings={() => {
-            import("@tauri-apps/api/core").then(({ invoke }) => {
-              invoke("open_settings").catch(() => {});
-            });
+            import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
+              const existing = WebviewWindow.getByLabel("settings");
+              if (existing) {
+                existing.show();
+                existing.setFocus();
+              } else {
+                new WebviewWindow("settings", {
+                  url: "settings.html",
+                  title: "Lumi 设置",
+                  width: 760,
+                  height: 560,
+                  resizable: false,
+                  decorations: true,
+                  center: true,
+                });
+              }
+            }).catch(() => {});
           }}
           onQuit={handleQuit}
         />

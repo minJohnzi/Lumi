@@ -158,6 +158,6 @@ pub fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn exit_app(app: tauri::AppHandle) {
-    app.exit(0);
+pub fn exit_app() {
+    std::process::exit(0);
 }
