@@ -136,23 +136,23 @@ pub fn get_screenshot_detect_status(
 }
 
 #[tauri::command]
-pub fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::{WebviewUrl, WebviewWindowBuilder};
+pub async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.show();
         let _ = win.set_focus();
     } else {
-        let _ = WebviewWindowBuilder::new(
+        tauri::WebviewWindowBuilder::new(
             &app,
             "settings",
-            WebviewUrl::App("settings.html".into()),
+            tauri::WebviewUrl::App("settings.html".into()),
         )
         .title("Lumi 设置")
         .inner_size(760.0, 560.0)
         .resizable(false)
         .decorations(true)
         .center()
-        .build();
+        .build()
+        .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
