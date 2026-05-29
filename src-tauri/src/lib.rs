@@ -33,14 +33,23 @@ pub fn run() {
             commands::memory::save_conversation,
             commands::memory::get_conversations,
             commands::config::get_preferences,
+            commands::config::save_preferences,
             commands::config::set_preference,
+            commands::config::get_api_key,
+            commands::config::set_api_key,
+            commands::config::get_app_settings,
+            commands::config::save_app_settings,
             commands::chat::send_message,
             commands::system::get_system_info,
             commands::system::toggle_screenshot_detect,
             commands::system::get_screenshot_detect_status,
             commands::system::list_models,
+            commands::system::list_imported_models,
+            commands::system::add_model_from_path,
+            commands::system::remove_imported_model,
             commands::system::open_settings,
             commands::system::exit_app,
+            commands::system::clamp_window_to_visible_frame,
         ])
         .setup(|app| {
             let settings = MenuItem::with_id(app, "settings", "设置...", true, None::<&str>)?;

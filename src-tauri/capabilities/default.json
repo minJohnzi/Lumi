@@ -13,6 +13,8 @@
     "core:window:allow-set-always-on-top",
     "core:window:allow-hide",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-size",
+    "core:window:allow-inner-size",
     "core:webview:allow-create-webview-window"
   ]
 }

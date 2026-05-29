@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::db::Database;
+use crate::{db::Database, services::secret_store};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatRequest {
     pub message: String,
     pub provider: String,
-    pub api_key: String,
     pub model: String,
 }
 
@@ -47,8 +46,16 @@ pub async fn send_message(
         memory_prompt
     );
 
+    let api_key = if request.provider == "local" {
+        String::new()
+    } else {
+        secret_store::get_api_key(&request.provider)?
+            .filter(|key| !key.trim().is_empty())
+            .ok_or_else(|| format!("Missing API key for provider: {}", request.provider))?
+    };
+
     // Call LLM API
-    let reply = call_llm(&request.provider, &request.api_key, &request.model, &system_prompt, &request.message).await?;
+    let reply = call_llm(&request.provider, &api_key, &request.model, &system_prompt, &request.message).await?;
 
     // Save this conversation to memory as a summary
     let summary_key = format!("conv_{}", chrono::Utc::now().timestamp());

@@ -36,6 +36,15 @@ impl Database {
                 key         TEXT PRIMARY KEY,
                 value       TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS model_catalog (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                path        TEXT NOT NULL,
+                model_type  TEXT NOT NULL,
+                source      TEXT NOT NULL,
+                updated_at  INTEGER NOT NULL
+            );
             ",
         )?;
         Ok(())
