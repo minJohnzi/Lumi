@@ -1,198 +1,207 @@
-# API — Tauri IPC Commands
+# API
 
-前端通过 `invoke(command, args)` 调用，全部为异步。Rust 侧返回 `Result<T, String>`，错误时 Promise reject，reason 为 String。
+前端通过 `@tauri-apps/api/core` 的 `invoke(command, args)` 调用 Rust command。Rust 侧统一返回 `Result<T, String>`，错误时 Promise reject。
 
----
-
-## 聊天
+## Chat
 
 ### `send_message`
 
-发送消息给 LLM，自动注入记忆上下文，回复后保存摘要。
+发送用户消息给 LLM，自动注入最近记忆，返回助手回复。
 
-**Request**
 ```ts
-{
-  message: string;
-  provider: "openai" | "anthropic" | "deepseek" | "local";
-  api_key: string;
-  model: string;
-}
+invoke<{ reply: string }>("send_message", {
+  request: {
+    message: string;
+    provider: "openai" | "anthropic" | "deepseek" | "local";
+    api_key: string;
+    model: string;
+  }
+})
 ```
 
-**Response**
-```ts
-string  // LLM 回复文本
-```
+副作用：
 
-**副作用**
-- 读取最近 5 条 memories 注入系统提示
-- 将本次对话摘要写入 memories 表（key: `conv_<timestamp>`）
+- 读取最近 5 条 memory 注入 system prompt。
+- 将本次对话摘要写入 memories，key 为 `conv_<timestamp>`。
 
----
-
-## 记忆
+## Memory
 
 ### `save_memory`
 
 ```ts
-invoke("save_memory", { key: string, content: string })
-→ void
+invoke("save_memory", {
+  key: string,
+  content: string,
+})
 ```
 
-key 唯一，重复调用覆盖已有记录（upsert）。
-
----
+语义：upsert，同 key 会覆盖。
 
 ### `get_memories`
 
 ```ts
-invoke("get_memories", { limit?: number })
-→ Array<{ id: number, key: string, content: string, updated_at: string }>
+invoke<Array<{
+  id: number;
+  key: string;
+  content: string;
+  updated_at: number;
+}>>("get_memories", {
+  limit?: number,
+})
 ```
-
-按 `updated_at` 降序排列，`limit` 默认不限。
-
----
 
 ### `delete_memory`
 
 ```ts
-invoke("delete_memory", { key: string })
-→ void
+invoke("delete_memory", {
+  key: string,
+})
 ```
-
----
 
 ### `save_conversation`
 
 ```ts
-invoke("save_conversation", { id: string, role: "user" | "assistant", content: string })
-→ void
+invoke("save_conversation", {
+  id: string,
+  role: "user" | "assistant",
+  content: string,
+})
 ```
-
----
 
 ### `get_conversations`
 
 ```ts
-invoke("get_conversations", { limit?: number })
-→ Array<{ id: string, role: string, content: string, created_at: string }>
+invoke<Array<{
+  id: string;
+  role: string;
+  content: string;
+  created_at: number;
+}>>("get_conversations", {
+  limit?: number,
+})
 ```
 
-按 `created_at` 升序排列。
+## Preferences
 
----
-
-## 配置
+目标主路径为 Rust/SQLite preferences。当前代码仍有 `localStorage` 兼容路径，待迁移。
 
 ### `get_preferences`
 
 ```ts
-invoke("get_preferences")
-→ Record<string, string>
+invoke<Record<string, string>>("get_preferences")
 ```
-
-返回 preferences 表所有键值对。
-
----
 
 ### `set_preference`
 
 ```ts
-invoke("set_preference", { key: string, value: string })
-→ void
+invoke("set_preference", {
+  key: string,
+  value: string,
+})
 ```
 
-upsert 语义，key 已存在则更新。
+### API Key 存储
 
----
+API Key 不应作为普通 preference 明文持久化。目标方案是新增 Rust 侧加密存储接口，由设置页提交 key，聊天请求只传 provider/model 或 key 引用。
 
-## 系统
+当前代码尚未实现该接口，迁移任务见 `docs/TASKS.md`。
+
+## System
 
 ### `list_models`
 
-扫描 `public/models/` 目录，自动检测模型类型。
+扫描 `public/models/`，返回可识别模型。
 
 ```ts
-invoke("list_models")
-→ Array<{
-    name: string;        // 文件夹名
-    path: string;        // 相对路径，如 "models/sprites"
-    model_type: "live2d" | "sprite";
-  }>
+invoke<Array<{
+  name: string;
+  path: string;
+  model_type: "live2d" | "sprite";
+}>>("list_models")
 ```
 
-**检测规则**
-- 文件夹内含 `sprite.json` → `"sprite"`
-- 文件夹内含 `*.model3.json` 或 `*.model.json` → `"live2d"`
-- 都不含 → 跳过
+检测规则：
 
----
+- 文件夹内存在 `sprite.json`：`model_type = "sprite"`，`path = "models/<folder>"`
+- 文件夹内存在 `*.model3.json` 或 `*.model.json`：`model_type = "live2d"`，`path = "models/<folder>/<model-file>"`
+- 其他文件夹跳过。
 
 ### `get_system_info`
 
 ```ts
-invoke("get_system_info")
-→ {
-    cpu_usage: number;          // 百分比 0-100
-    memory_total_gb: number;
-    memory_used_gb: number;
-    disk_total_gb: number;      // 所有非可移动磁盘合计
-    disk_used_gb: number;
-    uptime_minutes: number;
-  }
+invoke<{
+  cpu_usage: number;
+  memory_total_gb: number;
+  memory_used_gb: number;
+  disk_total_gb: number;
+  disk_used_gb: number;
+  uptime_minutes: number;
+}>("get_system_info")
 ```
-
----
 
 ### `toggle_screenshot_detect`
 
-仅 Windows 有效，其他平台调用无副作用。
-
 ```ts
-invoke("toggle_screenshot_detect", { enabled: boolean })
-→ void
+invoke("toggle_screenshot_detect", {
+  enabled: boolean,
+})
 ```
 
----
+Windows 下通过截图保护服务应用隐藏策略；其他平台应保持无害。
 
 ### `get_screenshot_detect_status`
 
 ```ts
-invoke("get_screenshot_detect_status")
-→ boolean
+invoke<boolean>("get_screenshot_detect_status")
 ```
 
----
+### `open_settings`
 
-## Tauri 事件
-
-| 事件名 | 方向 | 触发时机 | 携带数据 |
-|---|---|---|---|
-| `refresh-model` | settings → main | 设置保存后 | 无 |
+打开或聚焦设置窗口。
 
 ```ts
-// 发送（settings window）
-import { emit } from "@tauri-apps/api/event";
+invoke("open_settings")
+```
+
+### `exit_app`
+
+退出应用。
+
+```ts
+invoke("exit_app")
+```
+
+### `clamp_window_to_visible_frame`
+
+移动当前窗口，并在 Rust 侧按当前显示器边界夹紧。用于拖拽和惯性移动。
+
+```ts
+invoke<{
+  x: number;
+  y: number;
+  hit_left: boolean;
+  hit_right: boolean;
+  hit_top: boolean;
+  hit_bottom: boolean;
+}>("clamp_window_to_visible_frame", {
+  dx: number,
+  dy: number,
+})
+```
+
+## Events
+
+### `refresh-model`
+
+方向：settings window -> main window。
+
+触发时机：设置保存或刷新模型后。
+
+行为：主窗口增加 `refreshKey`，强制 `DesktopPet` remount 并重新读取偏好。
+
+```ts
+import { emit, listen } from "@tauri-apps/api/event";
+
 await emit("refresh-model");
-
-// 监听（main window）
-import { listen } from "@tauri-apps/api/event";
-const unlisten = await listen("refresh-model", () => { ... });
-```
-
----
-
-## 错误格式
-
-所有命令错误统一为 `string`（Rust `Err(String)` → JS reject reason）：
-
-```ts
-try {
-  await invoke("send_message", args);
-} catch (err: unknown) {
-  // err is string, e.g. "reqwest error: connection refused"
-  console.error(err);
-}
+const unlisten = await listen("refresh-model", () => {});
 ```

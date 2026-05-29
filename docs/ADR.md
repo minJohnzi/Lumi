@@ -1,158 +1,130 @@
 # Architecture Decision Records
 
----
-
 ## ADR-001 — 使用 Tauri 而非 Electron
 
-**状态：** 已采纳
+**状态：已采纳**
 
-**背景**
+### 背景
 
-需要一个桌面应用框架支持：透明窗口、始终置顶、系统托盘、Windows 原生 API（截图保护）。
+Lumi 需要透明窗口、始终置顶、系统托盘、截图保护和原生系统能力。
 
-**决策**
+### 决策
 
-选择 Tauri 2。
+使用 Tauri 2。
 
-**理由**
+### 理由
 
-- 内存占用约 Electron 的 1/5（WebView 复用系统 WebKit/WebView2）
-- Rust 后端天然支持调用 Windows API（SetWindowDisplayAffinity）
-- Tauri 2 原生支持多窗口、系统托盘、透明窗口
-- 构建产物更小（无需打包 Chromium）
+- 更小的内存占用和安装体积。
+- Rust 后端适合封装 Windows API。
+- Tauri 原生支持多窗口、托盘、透明窗口和 IPC。
 
-**放弃的选项**
+### 约束
 
-- Electron：内存重，无法轻松调用原生 API，截图保护实现复杂
-- NW.js：生态较弱，长期维护风险高
+OS 集成功能优先通过 Tauri 插件或 Rust command 实现。
 
-**约束**
+## ADR-002 — PixiJS 固定在 v7
 
-此决策不可推翻，所有 OS 集成功能必须通过 Tauri 插件或 Rust 命令实现。
+**状态：已采纳**
 
----
+### 背景
 
-## ADR-002 — PixiJS 固定在 v7，不升级 v8
+`pixi-live2d-display@0.5` 依赖 PixiJS v7 API。PixiJS v8 的初始化方式和 API 有破坏性变化。
 
-**状态：** 已采纳
+### 决策
 
-**背景**
+保持 `pixi.js@^7.4.x`。
 
-pixi-live2d-display 0.5-beta 强依赖 PixiJS v7 API（`PIXI.Application({ view, backgroundAlpha })`，同步构造器等）。PixiJS v8 已发布，API 改为异步 `app.init()`。
+### 约束
 
-**决策**
+除非 `pixi-live2d-display` 明确支持 v8 并完成迁移评估，否则不升级 PixiJS v8。
 
-锁定 `pixi.js@^7.4.3`，不升级到 v8。
+## ADR-003 — LLM 调用和 API Key 存储在 Rust 侧完成
 
-**理由**
+**状态：已采纳**
 
-- 升级 v8 需要重写 `Live2DPet.tsx` 和 `SpritePet.tsx` 的初始化逻辑
-- pixi-live2d-display 尚未发布 v8 兼容版本
-- 迁移风险高，收益为零（渲染质量不变）
+### 背景
 
-**约束**
+LLM provider 需要 API Key。直接在前端调用会扩大泄露面。
 
-- `package.json` 中 `pixi.js` 版本锁定在 `^7.4.x`
-- 任何 AI Agent 不得将其升级到 v8
-- 当 pixi-live2d-display 发布 v8 兼容版本后，重新评估
+### 决策
 
----
+前端只通过 `invoke("send_message")` 调用 Rust，由 Rust 使用 reqwest 调 provider。
 
-## ADR-003 — LLM 调用在 Rust 侧完成
+API Key 使用 Rust 侧 keychain 加密存储。前端设置页只负责输入和提交，不把 key 写入普通偏好。
 
-**状态：** 已采纳
+### 迁移说明
 
-**背景**
+旧 `localStorage` 偏好中的 key 会在 `utils/prefs.ts` 的一次性迁移中写入 Rust 侧加密存储，随后移除旧偏好值。
 
-LLM 需要 API Key。若在前端调用，Key 暴露在 WebView 中，存在安全风险（Tauri CSP 较宽松，且用户可打开 DevTools）。
+## ADR-004 — 偏好主路径迁移到 Rust/SQLite
 
-**决策**
+**状态：已采纳，已实现**
 
-所有 LLM HTTP 请求在 `commands/chat.rs` 中通过 reqwest 发起，前端只传递消息内容。
+### 背景
 
-**理由**
+项目早期为了跨窗口快速读取偏好，使用 `localStorage` 作为偏好主路径；Rust 侧同时保留了 `preferences` 表和相关 IPC，形成双轨。
 
-- API Key 不出现在前端 bundle 或 JS 运行时
-- Rust 层可统一处理重试、超时、错误格式化
-- 便于未来添加速率限制或本地代理
+### 决策
 
-**约束**
+- 偏好主路径迁移到 Rust/SQLite `preferences` 表。
+- 前端通过 Tauri IPC 读写偏好。
+- `localStorage` 只允许作为旧数据的一次性迁移来源，迁移完成后不再作为权威数据源。
+- API Key 不再作为普通偏好写入 `localStorage`，应按 ADR-003 使用 Rust 侧加密存储。
 
-前端代码不允许通过任何方式直接请求 LLM API，包括 `fetch`、`axios`、Tauri HTTP plugin。
+### 迁移说明
 
----
+`src/utils/prefs.ts` 封装 `get_app_settings` / `save_app_settings`，启动时迁移旧 `lumi_prefs` 后删除旧值。
 
-## ADR-004 — SQLite + localStorage 双持久化策略
+## ADR-005 — Sprite 正式统一为 sheet/V3 格式
 
-**状态：** 已采纳
+**状态：已采纳**
 
-**背景**
+### 背景
 
-需要存储：用户偏好（小、频繁读）、对话历史（大、偶尔读）、记忆摘要（中、读写均有）。
+早期文档讨论过单图状态和分层格式，但当前代码实现以 sprite sheet 为主：每个状态是一行帧，支持单 sheet 或多 layer sheet。
 
-**决策**
+### 决策
 
-- 偏好：localStorage（主窗口和设置窗口同源共享，无需 IPC）
-- 记忆 / 对话：SQLite（结构化查询，支持 limit / order by）
+`SpritePet` 只接受 V3 配置：
 
-**理由**
+```json
+{
+  "type": "sprite",
+  "sheet": "spritesheet.png",
+  "frameW": 300,
+  "frameH": 300,
+  "states": {
+    "idle": { "row": 0, "frames": 4, "durationMs": 1200 }
+  }
+}
+```
 
-- 偏好通过 localStorage 可以让两个 Tauri 窗口免 IPC 读取，减少延迟
-- 记忆需要按时间排序和 limit 查询，localStorage 不适合
-- 单一 SQLite 文件便于备份和迁移
+可选 `layers` 支持多层 sheet 和视差。
 
-**约束**
+### 约束
 
-- `prefs.ts` 是 localStorage 操作的唯一入口
-- 组件不允许直接调用 `localStorage.setItem/getItem`
-- SQLite 操作只能在 Rust commands 层执行
+- `sprite.json` 必须包含 `sheet` 字段。
+- 新模型必须使用 sheet/V3。
+- 旧 v1/v2 格式正式放弃，不再维护兼容路径。
+- 如未来确实需要导入旧格式，应通过一次性迁移工具转换到 V3，而不是在运行时恢复兼容分支。
 
----
+## ADR-006 — 双窗口架构
 
-## ADR-005 — PNG Sprite 支持 v1 / v2 双格式
+**状态：已采纳**
 
-**状态：** 已采纳
+### 背景
 
-**背景**
+主窗口是小尺寸透明桌宠，不适合承载完整设置 UI。
 
-初始版本使用单张 PNG / 状态的 v1 格式（`sprite.json` root-level `states`）。后续为实现视差深度感，引入 v2 分层格式（`layers` 数组）。
+### 决策
 
-**决策**
+使用主窗口 + 独立设置窗口：
 
-`SpritePet.tsx` 通过检测 `layers` 字段存在与否区分 v1 / v2，两种格式并存。
+- 主窗口：`index.html`
+- 设置窗口：`settings.html`
 
-**理由**
+### 约束
 
-- 向后兼容，用户自定义的 v1 模型无需改动
-- v2 格式在资产就绪前不强制要求
-
-**约束**
-
-- `isV2()` 函数（`SpritePet.tsx`）是格式检测的唯一入口
-- 新模型默认使用 v2 格式
-- v1 格式在全部官方模型迁移到 v2 后可评估移除（需更新 ADR）
-
----
-
-## ADR-006 — 双窗口架构（主窗口 + 设置窗口）
-
-**状态：** 已采纳
-
-**背景**
-
-主窗口是 400×300 的透明悬浮窗，空间有限无法容纳完整设置 UI。
-
-**决策**
-
-设置页面使用独立的 `settings.html` 入口，通过 Tauri 打开独立窗口。
-
-**理由**
-
-- 主窗口保持最小 footprint，不被设置 UI 污染
-- 设置窗口可以有独立尺寸和样式
-- Vite 多入口构建支持好，无额外框架依赖
-
-**约束**
-
-- 设置窗口不持有运行时状态，只读写 localStorage 和发事件
-- 跨窗口通信只通过 Tauri 事件（`emit` / `listen`），不通过 `window.opener` 或其他 DOM API
+- 设置窗口不持有运行时宠物状态。
+- 跨窗口通信只使用 Tauri event。
+- 当前模型刷新事件为 `refresh-model`。
