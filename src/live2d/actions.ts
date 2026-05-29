@@ -1,5 +1,6 @@
 import type { PetState } from "../types";
 import type { ActionScheduler } from "./ActionScheduler";
+import type { Live2DModelLike } from "./live2dTypes";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -9,7 +10,7 @@ function sleep(ms: number) {
  * Register all basic life actions on the scheduler.
  * These are the "70% idle micro-variations" — subtle, slow, natural.
  */
-export function registerBasicActions(scheduler: ActionScheduler, model: any, _getState: () => PetState) {
+export function registerBasicActions(scheduler: ActionScheduler, model: Live2DModelLike, _getState: () => PetState) {
   // ── Blink ─────────────────────────────────────────────
   scheduler.register({
     name: "blink",

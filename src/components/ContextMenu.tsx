@@ -1,155 +1,138 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { Icon } from "@iconify/react";
+import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef } from "react";
 import "../styles/context-menu.css";
-
-interface MenuItemDef {
-  label: string;
-  sub: string;
-  action: () => void;
-  hasSubmenu?: boolean;
-  dynamicLabel?: string;
-}
 
 interface ContextMenuProps {
   x: number;
   y: number;
-  isAlwaysOnTop: boolean;
-  currentScale: number;
   onClose: () => void;
-  onEdgeHide: () => void;
-  onScaleChange: (s: number) => void;
-  onToggleAlwaysOnTop: () => void;
+  onSnap: () => void;
   onHide: () => void;
-  onOpenChat: () => void;
-  onOpenSettings: () => void;
-  onQuit: () => void;
+  onToggleChat: () => void;
 }
 
-const SCALES = [
-  { label: "娇小", value: 0.7 },
-  { label: "刚好", value: 1.0 },
-  { label: "显眼", value: 1.3 },
-];
+type ArcDirection = "up" | "down";
+type ArcSide = "left" | "right";
+
+const menuItems = [
+  {
+    key: "chat",
+    label: "Chat",
+    icon: "mage:message-round",
+  },
+  {
+    key: "snap",
+    label: "Snap",
+    icon: "arcticons:edge-gestures",
+  },
+  {
+    key: "hide",
+    label: "Hide",
+    icon: "mdi:hide-outline",
+  },
+] as const;
 
 export default function ContextMenu({
   x,
   y,
-  isAlwaysOnTop,
-  currentScale,
   onClose,
-  onEdgeHide,
-  onScaleChange,
-  onToggleAlwaysOnTop,
+  onSnap,
   onHide,
-  onOpenChat,
-  onOpenSettings,
-  onQuit,
+  onToggleChat,
 }: ContextMenuProps) {
-  const [submenuOpen, setSubmenuOpen] = useState(false);
-  const [adjX, setAdjX] = useState(x);
-  const [adjY, setAdjY] = useState(y);
   const menuRef = useRef<HTMLDivElement>(null);
-  const subTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Adjust position to stay within window bounds (before paint)
-  useLayoutEffect(() => {
-    const menu = menuRef.current;
-    if (!menu) return;
-    const rect = menu.getBoundingClientRect();
-    let nx = x;
-    let ny = y;
-    if (x + rect.width > window.innerWidth) nx = Math.max(0, x - rect.width);
-    if (y + rect.height > window.innerHeight) ny = Math.max(0, y - rect.height);
-    if (nx !== x || ny !== y) {
-      setAdjX(nx);
-      setAdjY(ny);
-    }
+  const layout = useMemo(() => {
+    const width = 96;
+    const height = 148;
+    const margin = 8;
+    const arcDirection: ArcDirection = y + height > window.innerHeight && y > height ? "up" : "down";
+    const arcSide: ArcSide = x + width + 14 <= window.innerWidth ? "right" : "left";
+    const rawLeft = arcSide === "right" ? x + 10 : x - width - 10;
+    const left = Math.min(Math.max(margin, rawLeft), Math.max(margin, window.innerWidth - width - margin));
+    const top = arcDirection === "down"
+      ? Math.min(Math.max(margin, y - 18), Math.max(margin, window.innerHeight - height - margin))
+      : Math.max(margin, Math.min(y - height + 18, window.innerHeight - height - margin));
+
+    const outerX = arcSide === "right" ? 40 : 14;
+    const innerX = arcSide === "right" ? 50 : 4;
+
+    const points =
+      arcDirection === "down"
+        ? [
+            { top: 4, left: outerX },
+            { top: 52, left: innerX },
+            { top: 100, left: outerX },
+          ]
+        : [
+            { top: 102, left: outerX },
+            { top: 54, left: innerX },
+            { top: 6, left: outerX },
+          ];
+
+    return { left, top, points, arcDirection, arcSide, width, height };
   }, [x, y]);
 
-  // Click outside to close
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    // Delay to avoid the same right-click event closing immediately
-    const id = setTimeout(() => document.addEventListener("mousedown", handle), 0);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    const id = window.setTimeout(() => document.addEventListener("mousedown", handle), 0);
+    window.addEventListener("keydown", handleKey);
     return () => {
-      clearTimeout(id);
+      window.clearTimeout(id);
       document.removeEventListener("mousedown", handle);
+      window.removeEventListener("keydown", handleKey);
     };
   }, [onClose]);
 
-  const handleSubEnter = useCallback(() => {
-    clearTimeout(subTimeout.current);
-    setSubmenuOpen(true);
-  }, []);
+  useEffect(() => {
+    if (menuRef.current) {
+      menuRef.current.style.setProperty("--arc-direction", layout.arcDirection);
+      menuRef.current.style.setProperty("--arc-side", layout.arcSide);
+    }
+  }, [layout.arcDirection, layout.arcSide]);
 
-  const handleSubLeave = useCallback(() => {
-    subTimeout.current = setTimeout(() => setSubmenuOpen(false), 200);
-  }, []);
-
-  const items: MenuItemDef[] = [
-    { label: "去边缘贴贴", sub: "靠边隐藏", action: onEdgeHide },
-    { label: "换个身形 ▸", sub: "调整大小", action: () => {}, hasSubmenu: true },
-    { label: isAlwaysOnTop ? "别挡着你" : "看着我", sub: "置顶切换", action: onToggleAlwaysOnTop },
-    { label: "累啦，眯一会儿", sub: "收进托盘", action: onHide },
-    { label: "来聊聊天吧", sub: "打开对话", action: onOpenChat },
-    { label: "打理一下房间", sub: "打开设置", action: onOpenSettings },
-    { label: "下次再找你玩，晚安", sub: "退出应用", action: onQuit },
-  ];
-
-  return (
-    <div
-      ref={menuRef}
-      className="context-menu"
-      style={{ left: adjX, top: adjY }}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      {items.map((item, i) => {
-        const isSeparatorBefore = i === 4;
-        return (
-          <div key={i}>
-            {isSeparatorBefore && <div className="context-menu-sep" />}
-            <div
-              className={`context-menu-item${item.hasSubmenu ? " has-submenu" : ""}`}
-              onClick={() => {
-                if (!item.hasSubmenu) {
-                  item.action();
+  return createPortal(
+    <div className="context-menu-portal" onContextMenu={(e) => e.preventDefault()}>
+      <div
+        ref={menuRef}
+        className={`context-menu side-${layout.arcSide}`}
+        style={{ left: layout.left, top: layout.top, width: layout.width, height: layout.height }}
+      >
+        <div className="context-menu-orbit">
+          {menuItems.map((item, index) => {
+            const onClick =
+              item.key === "chat" ? onToggleChat : item.key === "snap" ? onSnap : onHide;
+            const point = layout.points[index];
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={`context-menu-node node-${item.key}`}
+                style={{ left: point.left, top: point.top }}
+                aria-label={item.label}
+                title={item.label}
+                onClick={() => {
+                  onClick();
                   onClose();
-                }
-              }}
-              onMouseEnter={item.hasSubmenu ? handleSubEnter : undefined}
-              onMouseLeave={item.hasSubmenu ? handleSubLeave : undefined}
-            >
-              <span className="context-menu-label">{item.label}</span>
-              <span className="context-menu-sub">{item.sub}</span>
-              {item.hasSubmenu && submenuOpen && (
-                <div
-                  className="context-submenu"
-                  onMouseEnter={handleSubEnter}
-                  onMouseLeave={handleSubLeave}
-                >
-                  {SCALES.map((s) => (
-                    <div
-                      key={s.value}
-                      className={`context-submenu-item${currentScale === s.value ? " active" : ""}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onScaleChange(s.value);
-                        onClose();
-                      }}
-                    >
-                      <span className="context-menu-label">{s.label}</span>
-                      <span className="context-menu-sub">{s.value}x</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+                }}
+              >
+                <span className="context-menu-node-ring" />
+                <Icon icon={item.icon} width={18} height={18} />
+              </button>
+            );
+          })}
+          <span className="context-menu-arc" />
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

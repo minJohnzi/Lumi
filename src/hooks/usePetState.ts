@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { PetState } from "../types";
 
-const IDLE_TIMEOUT = 45_000;  // 45s idle → sleepy
-const HAPPY_TIMEOUT = 6_000;  // happy lasts 6s then → idle
+const IDLE_TIMEOUT = 45_000;  // 45s idle �?sleepy
+const HAPPY_TIMEOUT = 6_000;  // happy lasts 6s then �?idle
 const TALKING_TIMEOUT = 8_000; // after 8s of silence, back to idle
 
 function isNightHours(): boolean {
@@ -11,9 +11,7 @@ function isNightHours(): boolean {
 }
 
 export function usePetState(initial: PetState = "idle") {
-  const [state, setState] = useState<PetState>(() => {
-    return isNightHours() ? "sleepy" : initial;
-  });
+  const [state, setState] = useState<PetState>(initial);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const happyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const talkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,17 +79,18 @@ export function usePetState(initial: PetState = "idle") {
     return clearTimers;
   }, [resetIdle, clearTimers]);
 
-  // Periodic time-based checks (e.g., night→sleepy, morning→idle)
+  // Night mode only shortens idle timeout; it should not force a freshly
+  // opened or interacted pet into sleepy.
   useEffect(() => {
     timeCheckTimer.current = setInterval(() => {
       if (isNightHours()) {
-        setState((prev) => (prev === "idle" ? "sleepy" : prev));
+        resetIdle();
       }
     }, 60_000); // Check every minute
     return () => {
       if (timeCheckTimer.current) clearInterval(timeCheckTimer.current);
     };
-  }, []);
-
+  }, [resetIdle]);
   return { state, transition, resetIdle, wakeUp };
 }
+

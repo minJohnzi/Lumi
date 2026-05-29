@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "outDir": "dist-tests",
+    "rootDir": ".",
+    "declaration": false,
+    "sourceMap": false,
+    "removeComments": false
+  },
+  "include": ["tests/**/*.ts", "src/live2d/SpriteAnimator.ts"]
+}

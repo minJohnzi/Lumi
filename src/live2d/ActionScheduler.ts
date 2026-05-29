@@ -1,4 +1,5 @@
 import type { PetState } from "../types";
+import type { Live2DModelLike } from "./live2dTypes";
 
 export type ActionEvent =
   | "click"
@@ -53,7 +54,7 @@ const STATE_PACING: Partial<Record<PetState, number>> = {
 };
 
 export class ActionScheduler {
-  private model: any;
+  private model: Live2DModelLike;
   private running = false;
   private timers: ReturnType<typeof setTimeout>[] = [];
   private getState: () => PetState;
@@ -67,7 +68,7 @@ export class ActionScheduler {
   private breathStart = 0;
   private lastBreathOffset = 0;
 
-  constructor(model: any, getState: () => PetState) {
+  constructor(model: Live2DModelLike, getState: () => PetState) {
     this.model = model;
     this.getState = getState;
     this.breathStart = Date.now() / 1000;

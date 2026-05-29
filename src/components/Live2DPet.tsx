@@ -1,7 +1,11 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { PetState } from "../types";
 import { ActionScheduler } from "../live2d/ActionScheduler";
 import { registerBasicActions } from "../live2d/actions";
+import { findMotion } from "../live2d/motionResolver";
+import type { Live2DModelLike, PixiAppLike } from "../live2d/live2dTypes";
+import { measureLive2DFit, type FitMetadata } from "../services/modelBounds";
+import { live2dModelUrl, modelAssetUrl, modelDirectoryPath, normalizeModelPath } from "../services/modelPaths";
 
 interface Live2DPetProps {
   state: PetState;
@@ -10,52 +14,33 @@ interface Live2DPetProps {
   onStatus: (msg: string) => void;
 }
 
-const STATE_MOTION_HINTS: Record<PetState, { groups: string[]; keys: string[] }> = {
-  idle:    { groups: ["Idle"],            keys: ["idle"] },
-  talking: { groups: ["Tap", "Talk"],     keys: ["talk", "tap"] },
-  thinking:{ groups: ["Tap"],             keys: ["think", "doubt", "look"] },
-  happy:   { groups: ["Tap"],             keys: ["happy", "surprise", "cheer"] },
-  sleepy:  { groups: ["Idle"],            keys: ["sleep", "yawn", "tired"] },
-};
+async function loadLive2DFitMeta(cleanPath: string): Promise<FitMetadata | null> {
+  const fitUrl = modelAssetUrl(modelDirectoryPath(cleanPath), "fit.json");
+  try {
+    const res = await fetch(fitUrl);
+    if (!res.ok) return null;
+    const meta = await res.json();
+    if (!meta || typeof meta !== "object") return null;
+    return meta as FitMetadata;
+  } catch {
+    return null;
+  }
+}
 
 export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: Live2DPetProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const appRef = useRef<unknown>(null);
-  const modelRef = useRef<unknown>(null);
+  const appRef = useRef<PixiAppLike | null>(null);
+  const modelRef = useRef<Live2DModelLike | null>(null);
   const schedulerRef = useRef<ActionScheduler | null>(null);
   const stateRef = useRef<PetState>("idle");
 
-  // Keep stateRef synced so scheduler always reads current state
   stateRef.current = state;
 
-  const log = (msg: string) => {
+  const log = useCallback((msg: string) => {
     console.log("[Live2D]", msg);
     onStatus(msg);
-  };
+  }, [onStatus]);
 
-  const findMotion = useCallback((model: any, petState: PetState): string | null => {
-    const hints = STATE_MOTION_HINTS[petState];
-    if (!hints) return null;
-    try {
-      const defs = model.internalModel?.motionManager?.definitions;
-      if (!defs) return null;
-      for (const group of hints.groups) {
-        if (defs[group]) return group;
-      }
-      const keys = hints.keys.map((k) => k.toLowerCase());
-      for (const [groupName, groupDef] of Object.entries(defs)) {
-        const motions = (groupDef as any)?.map?.((m: any) => m?.File?.toLowerCase?.() ?? "") ?? [];
-        for (const key of keys) {
-          if (motions.find((m: string) => m.includes(key))) return groupName as string;
-        }
-      }
-      return Object.keys(defs)[0] ?? null;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // Init PIXI + model
   useEffect(() => {
     let cancelled = false;
     const canvas = canvasRef.current;
@@ -63,22 +48,19 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
 
     async function init() {
       try {
-        log("Step 1: Loading PixiJS...");
+        log("Loading PixiJS...");
         const PIXI = await import("pixi.js");
-        (window as any).PIXI = PIXI;
-        log("Step 2: PixiJS OK");
+        (window as Window & { PIXI?: unknown }).PIXI = PIXI;
+        const normalizedModelPath = normalizeModelPath(modelPath);
 
-        const isCubism4 = modelPath.endsWith(".model3.json");
-        log(`Step 3: Loading ${isCubism4 ? "Cubism4" : "Cubism2"} plugin...`);
+        const isCubism4 = normalizedModelPath.endsWith(".model3.json");
         const mod = isCubism4
           ? await import("pixi-live2d-display/cubism4")
           : await import("pixi-live2d-display/cubism2");
         const { Live2DModel } = mod;
-        log("Step 4: Plugin OK");
 
         if (cancelled || !canvasRef.current) return;
 
-        log("Step 5: Creating PIXI app (WebGL)...");
         const app = new PIXI.Application({
           view: canvasRef.current,
           width: 300,
@@ -89,94 +71,86 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
           preserveDrawingBuffer: true,
           powerPreference: "high-performance",
         });
-        appRef.current = app;
+        appRef.current = app as PixiAppLike;
 
-        const rendererType = (app.renderer as any).type;
-        log(`Step 6: PIXI renderer type = ${rendererType} (1=WebGL, 2=Canvas)`);
-        if (rendererType !== 1) {
-          log("FAIL: WebGL not available");
+        if ((app.renderer as { type?: number }).type !== 1) {
           onLoadError();
           return;
         }
 
-        log(`Step 7: Loading model: ${modelPath}...`);
-        try {
-          const model = await Live2DModel.from(modelPath);
-          if (cancelled) { model.destroy?.(); return; }
-          log("Step 8: Model loaded OK");
-
-          modelRef.current = model;
-          model.anchor.set(0.5, 0.5);
-          model.x = 150;
-          model.y = 160;
-          model.scale.set(0.07);
-          app.stage.addChild(model);
-          log("Step 9: Model added to stage");
-
-          // Set up action scheduler
-          const scheduler = new ActionScheduler(model, () => stateRef.current);
-          registerBasicActions(scheduler, model, () => stateRef.current);
-          scheduler.start();
-          schedulerRef.current = scheduler;
-          log("Scheduler started");
-
-          // Breathing on ticker
-          app.ticker.add(() => {
-            scheduler.tickBreath();
-          });
-
-          // Play initial idle motion (one-shot, then scheduler takes over)
-          const motion = findMotion(model, "idle");
-          if (motion) model.motion?.(motion);
-
-          log("SUCCESS");
-          onStatus("");
-        } catch (err) {
-          log(`FAIL: Model load error - ${err}`);
-          modelRef.current = null;
-          onLoadError();
+        const model = (await Live2DModel.from(live2dModelUrl(normalizedModelPath))) as unknown as Live2DModelLike;
+        if (cancelled) {
+          model.destroy?.();
+          return;
         }
+
+        modelRef.current = model;
+        model.anchor?.set?.(0.5, 0.5);
+        model.x = 150;
+        model.y = 160;
+        model.scale?.set?.(0.07);
+        app.stage.addChild(model as unknown as never);
+
+        const fitMeta = await loadLive2DFitMeta(normalizedModelPath);
+        const fit = await measureLive2DFit(model, (petState) => findMotion(model, petState), fitMeta);
+        if (cancelled) return;
+
+        const idleMotion = findMotion(model, "idle");
+        if (idleMotion) {
+          try {
+            await model.motion?.(idleMotion);
+          } catch {
+            // ignore
+          }
+        }
+
+        app.renderer.resize(Math.max(1, fit.width), Math.max(1, fit.height));
+
+        const bounds = model.getBounds?.() ?? model.getLocalBounds?.();
+        if (bounds) {
+          model.x += fit.paddingX - bounds.x;
+          model.y += fit.paddingY - bounds.y;
+        }
+        app.renderer.render(app.stage);
+
+        const scheduler = new ActionScheduler(model, () => stateRef.current);
+        registerBasicActions(scheduler, model, () => stateRef.current);
+        scheduler.start();
+        schedulerRef.current = scheduler;
+        app.ticker.add(() => scheduler.tickBreath());
+
+        onStatus("");
       } catch (err) {
-        log(`FAIL: Init error - ${err}`);
+        log(`FAIL: ${String(err)}`);
         onLoadError();
       }
     }
 
-    init();
+    void init();
 
     return () => {
       cancelled = true;
       schedulerRef.current?.stop();
       schedulerRef.current = null;
-      if (modelRef.current) {
-        try { (modelRef.current as any).destroy?.(); } catch { /* */ }
-        modelRef.current = null;
-      }
-      if (appRef.current) {
-        try {
-          (appRef.current as any).destroy?.(true, { children: true, texture: true, baseTexture: true });
-        } catch { /* */ }
-        appRef.current = null;
-      }
+      modelRef.current?.destroy?.();
+      modelRef.current = null;
+      appRef.current?.destroy?.(true, { children: true, texture: true, baseTexture: true });
+      appRef.current = null;
     };
-  }, [modelPath, onLoadError, onStatus]);
+  }, [log, modelPath, onLoadError, onStatus]);
 
-  // State transition — one-shot motion, then scheduler auto-adjusts pacing
   useEffect(() => {
-    const model = modelRef.current as any;
+    const model = modelRef.current;
     if (!model) return;
     const motion = findMotion(model, state);
     if (motion) {
-      try { model.motion?.(motion); } catch { /* */ }
+      try {
+        model.motion?.(motion);
+      } catch {
+        // ignore
+      }
     }
-  }, [state, findMotion]);
+  }, [state]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="live2d-canvas"
-      width={300}
-      height={300}
-    />
-  );
+  return <canvas ref={canvasRef} className="live2d-canvas" width={300} height={300} />;
 }

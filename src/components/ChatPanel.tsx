@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ChatMessage, PetState } from "../types";
-import { loadPrefs } from "../utils/prefs";
+import type { UserPreferences } from "../types";
 import { Icon } from "@iconify/react";
 
 interface ChatPanelProps {
   onClose: () => void;
   onStateChange: (state: PetState) => void;
+  prefs: UserPreferences;
 }
 
-export default function ChatPanel({ onClose, onStateChange }: ChatPanelProps) {
+export default function ChatPanel({ onClose, onStateChange, prefs }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,8 +23,6 @@ export default function ChatPanel({ onClose, onStateChange }: ChatPanelProps) {
   async function sendMessage() {
     const text = input.trim();
     if (!text || loading) return;
-
-    const prefs = loadPrefs();
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -41,7 +40,6 @@ export default function ChatPanel({ onClose, onStateChange }: ChatPanelProps) {
         request: {
           message: text,
           provider: prefs.llm_provider,
-          api_key: prefs.llm_api_key,
           model: prefs.llm_model,
         },
       });

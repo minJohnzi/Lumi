@@ -1,11 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
-import type { PetState } from "../types";
-import { loadPrefs } from "../utils/prefs";
+import { useState, useCallback, useEffect, useRef } from "react";
+import type { PetState, UserPreferences } from "../types";
 import Live2DPet from "./Live2DPet";
 import SpritePet from "./SpritePet";
+import type { WindowFitMetrics } from "../services/windowActions";
 
 interface DesktopPetProps {
   state: PetState;
+  prefs: UserPreferences;
+  onFitChange: (fit: WindowFitMetrics) => void;
 }
 
 const stateEmoji: Record<PetState, string> = {
@@ -16,10 +18,11 @@ const stateEmoji: Record<PetState, string> = {
   sleepy: "😴",
 };
 
-export default function DesktopPet({ state }: DesktopPetProps) {
-  const prefs = loadPrefs();
+export default function DesktopPet({ state, prefs, onFitChange }: DesktopPetProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [loadStatus, setLoadStatus] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastFitRef = useRef<WindowFitMetrics | null>(null);
 
   // Reset failed state when model path or type changes
   useEffect(() => {
@@ -38,8 +41,55 @@ export default function DesktopPet({ state }: DesktopPetProps) {
     }
   }, []);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const readSize = (rect: Pick<DOMRectReadOnly, "width" | "height">) => ({
+      width: Math.max(1, Math.ceil(rect.width)),
+      height: Math.max(1, Math.ceil(rect.height)),
+    });
+    if (typeof ResizeObserver === "undefined") {
+      onFitChange(readSize({
+        width: el.clientWidth || el.offsetWidth || 1,
+        height: el.clientHeight || el.offsetHeight || 1,
+      }));
+      return;
+    }
+
+    let raf = 0;
+    const pushFit = (rect: Pick<DOMRectReadOnly, "width" | "height">) => {
+      if (raf) window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(() => {
+        const next = readSize(rect);
+        const prev = lastFitRef.current;
+        if (!prev || prev.width !== next.width || prev.height !== next.height) {
+          lastFitRef.current = next;
+          onFitChange(next);
+        }
+      });
+    };
+
+    pushFit({
+      width: el.clientWidth || el.offsetWidth || 1,
+      height: el.clientHeight || el.offsetHeight || 1,
+    });
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect ?? {
+        width: el.clientWidth || el.offsetWidth || 1,
+        height: el.clientHeight || el.offsetHeight || 1,
+      };
+      pushFit(rect);
+    });
+    observer.observe(el);
+
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [onFitChange, loadFailed, prefs.model_path, prefs.model_type, prefs.pet_name]);
+
   return (
-    <div className="pet-container">
+    <div className="pet-container" ref={containerRef}>
       {useModel ? (
         prefs.model_type === "sprite" ? (
           <SpritePet
@@ -48,6 +98,7 @@ export default function DesktopPet({ state }: DesktopPetProps) {
             modelPath={prefs.model_path}
             onLoadError={handleLoadError}
             onStatus={handleStatus}
+            onFitChange={onFitChange}
           />
         ) : (
           <Live2DPet

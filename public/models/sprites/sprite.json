@@ -4,33 +4,18 @@
   "scale": 0.35,
   "anchor": [0.5, 0.5],
   "size": [300, 300],
-  "blinkDuration": 80,
-  "layers": [
-    {
-      "id": "body",
-      "zIndex": 0,
-      "parallax": 0.0,
-      "states": {
-        "idle":     "layers/body.png",
-        "talking":  "layers/body.png",
-        "thinking": "layers/body.png",
-        "happy":    "layers/body.png",
-        "sleepy":   "layers/body.png"
-      }
-    },
-    {
-      "id": "face",
-      "zIndex": 1,
-      "parallax": 0.22,
-      "isFace": true,
-      "blink": "layers/face_blink.png",
-      "states": {
-        "idle":     "layers/face_idle.png",
-        "talking":  "layers/face_talking.png",
-        "thinking": "layers/face_thinking.png",
-        "happy":    "layers/face_happy.png",
-        "sleepy":   "layers/face_sleepy.png"
-      }
-    }
-  ]
+  "fit": {
+    "paddingX": 24,
+    "paddingY": 26
+  },
+  "sheet": "spritesheet.png",
+  "frameW": 469,
+  "frameH": 512,
+  "states": {
+    "idle":    { "row": 0, "frames": 4, "durationMs": 2400 },
+    "talking": { "row": 1, "frames": 2, "durationMs": 900 },
+    "thinking":{ "row": 2, "frames": 3, "durationMs": 1800 },
+    "happy":   { "row": 3, "frames": 3, "durationMs": 800 },
+    "sleepy":  { "row": 4, "frames": 2, "durationMs": 2400 }
+  }
 }

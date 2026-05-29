@@ -1,0 +1,21 @@
+{
+  "type": "sprite",
+  "name": "路飞 (Luffy)",
+  "scale": 0.55,
+  "anchor": [0.5, 0.5],
+  "size": [460, 460],
+  "fit": {
+    "paddingX": 28,
+    "paddingY": 30
+  },
+  "sheet": "spritesheet.png",
+  "frameW": 460,
+  "frameH": 460,
+  "states": {
+    "idle":     { "row": 0, "frames": 4, "durationMs": 2400 },
+    "talking":  { "row": 1, "frames": 2, "durationMs": 1400 },
+    "thinking": { "row": 2, "frames": 3, "durationMs": 2000 },
+    "happy":    { "row": 3, "frames": 3, "durationMs": 1200 },
+    "sleepy":   { "row": 4, "frames": 2, "durationMs": 3200 }
+  }
+}

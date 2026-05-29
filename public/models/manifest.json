@@ -1,0 +1,40 @@
+{
+  "defaultModelId": "haru",
+  "models": [
+    {
+      "id": "haru",
+      "name": "Haru",
+      "path": "models/haru_greeter_t03/haru_greeter_t03.model3.json",
+      "model_type": "live2d",
+      "source": "bundled"
+    },
+    {
+      "id": "chiaki-kitty",
+      "name": "Chiaki Kitty",
+      "path": "models/chiaki_kitty/chiaki_kitty.model.json",
+      "model_type": "live2d",
+      "source": "bundled"
+    },
+    {
+      "id": "luffy",
+      "name": "Luffy",
+      "path": "models/Luffy",
+      "model_type": "sprite",
+      "source": "bundled"
+    },
+    {
+      "id": "lumi-sprite",
+      "name": "Lumi Sprite",
+      "path": "models/sprites",
+      "model_type": "sprite",
+      "source": "bundled"
+    },
+    {
+      "id": "test-sprite",
+      "name": "Test Sprite",
+      "path": "models/test_sprite",
+      "model_type": "sprite",
+      "source": "bundled"
+    }
+  ]
+}

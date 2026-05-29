@@ -16,6 +16,13 @@
   box-sizing: border-box;
 }
 
+/* ===== 鼠标穿透基础设施 ===== */
+/*
+  核心原则：默认全部穿透，按需激活。
+  任何需要交互的子元素必须显式设置 pointer-events: auto。
+  参考 Petdex Zig 版实现。
+*/
+
 html, body, #root {
   width: 100%;
   height: 100%;
@@ -28,6 +35,14 @@ html, body, #root {
   user-select: none;
 }
 
+/* 穿透仅作用于主窗口（透明无边框），设置窗口不受影响 */
+html.main-window,
+html.main-window body,
+html.main-window #root {
+  pointer-events: none;
+  -webkit-user-select: none;
+}
+
 /* Layout: side-by-side when chat open */
 .app-layout {
   width: 100%;
@@ -35,6 +50,7 @@ html, body, #root {
   display: flex;
   flex-direction: row;
   align-items: stretch;
+  position: relative;
 }
 
 .chat-wrapper {
@@ -59,6 +75,7 @@ html, body, #root {
   justify-content: center;
   position: relative;
   cursor: move;
+  pointer-events: auto;
 }
 
 .pet-area.with-chat {
@@ -102,10 +119,16 @@ html, body, #root {
   align-items: center;
   gap: 8px;
   cursor: grab;
+  pointer-events: auto;
 }
 
 .pet-container:active {
   cursor: grabbing;
+}
+
+/* PixiJS Canvas */
+.pet-container canvas {
+  pointer-events: auto;
 }
 
 .pet-avatar {
@@ -183,6 +206,7 @@ html, body, #root {
     0 8px 32px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  pointer-events: auto;
 }
 
 .chat-panel-close {
@@ -347,29 +371,32 @@ html, body, #root {
   cursor: not-allowed;
 }
 
-/* Chat Toggle Button */
-.chat-toggle-btn {
+.resize-grip {
   position: absolute;
-  bottom: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: var(--bg-primary);
-  backdrop-filter: blur(8px);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  right: 14px;
+  bottom: 14px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, transparent 0 42%, rgba(255, 255, 255, 0.36) 42% 46%, transparent 46% 100%),
+    rgba(30, 31, 44, 0.82);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.24);
+  cursor: nwse-resize;
+  opacity: 0.82;
+  transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+  z-index: 3;
   -webkit-app-region: no-drag;
+  pointer-events: auto;
 }
 
-.chat-toggle-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 16px var(--accent-glow);
+.resize-grip:hover,
+.resize-grip.active {
+  transform: scale(1.05);
+  opacity: 1;
+  border-color: rgba(184, 168, 240, 0.45);
 }
 
 /* Settings Button */
@@ -406,6 +433,7 @@ html, body, #root {
   background: rgba(0,0,0,0.3);
   z-index: 100;
   -webkit-app-region: no-drag;
+  pointer-events: auto;
 }
 
 .settings-panel {
@@ -416,6 +444,7 @@ html, body, #root {
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: var(--radius);
   overflow: hidden;
+  pointer-events: auto;
 }
 
 /* =====================================================
@@ -778,6 +807,7 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   z-index: 200;
+  pointer-events: auto;
 }
 
 .import-modal {
@@ -857,6 +887,7 @@ html, body, #root {
 .settings-sidebar {
   width: 208px;
   flex: 0 0 208px;
+  min-height: 0;
   padding: 18px 14px;
   display: flex;
   flex-direction: column;
@@ -968,6 +999,7 @@ html, body, #root {
 
 .settings-main {
   min-width: 0;
+  min-height: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -997,6 +1029,7 @@ html, body, #root {
 
 .settings-tab-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 18px 24px 20px;
   display: flex;
@@ -1019,10 +1052,15 @@ html, body, #root {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
 }
 
 .settings-section-head.compact {
   align-items: center;
+}
+
+.settings-section-head > div:first-child {
+  min-width: 0;
 }
 
 .settings-section-title {
@@ -1107,11 +1145,20 @@ html, body, #root {
 
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.model-card-shell {
+  position: relative;
+  min-width: 0;
+  display: flex;
 }
 
 .model-card {
+  width: 100%;
+  min-height: 128px;
   min-width: 0;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1122,6 +1169,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 7px;
+  justify-content: space-between;
   text-align: left;
   font: inherit;
 }
@@ -1171,14 +1219,15 @@ html, body, #root {
 .model-card-meta {
   min-width: 0;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 34px;
 }
 
 .model-card-name {
   min-width: 0;
-  max-width: none;
+  width: 100%;
   color: #dce2ea;
   font-size: 12px;
   overflow: hidden;
@@ -1186,11 +1235,28 @@ html, body, #root {
   white-space: nowrap;
 }
 
+.model-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .model-card-tag {
   padding: 2px 6px;
   border-radius: 6px;
   flex-shrink: 0;
   font-size: 9px;
+}
+
+.model-card-source {
+  padding: 2px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: #86d7c8;
+  background: rgba(134, 215, 200, 0.1);
 }
 
 .tag-live2d {
@@ -1206,6 +1272,29 @@ html, body, #root {
 .model-card-import {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.13);
+  align-items: stretch;
+  justify-content: space-between;
+}
+
+.model-card-remove {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 128, 112, 0.2);
+  background: rgba(34, 21, 24, 0.9);
+  color: #ffab9c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.model-card-remove:hover {
+  background: rgba(65, 27, 27, 0.95);
+  color: #ffd5cf;
 }
 
 .model-card-import .model-card-name {
@@ -1218,6 +1307,13 @@ html, body, #root {
   align-items: center !important;
   gap: 10px !important;
   cursor: default;
+}
+
+.settings-language-select {
+  width: 126px;
+  height: 30px;
+  padding: 0 28px 0 10px !important;
+  font-size: 12px !important;
 }
 
 .toggle-label {
@@ -1319,6 +1415,37 @@ html, body, #root {
   border-radius: 8px;
 }
 
+.import-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #c7ced8;
+  font-size: 12px;
+}
+
+.import-modal input {
+  width: 100%;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #141923;
+  color: #e4e8ef;
+  padding: 0 11px;
+}
+
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.import-error {
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 /* Exit animation */
 .app-layout.is-exiting {
   animation: pet-fade-out 0.3s ease-in forwards;
@@ -1333,4 +1460,35 @@ html, body, #root {
 .pet-area.edge-hidden {
   cursor: pointer;
   box-shadow: inset 0 0 20px rgba(160, 150, 220, 0.15);
+}
+
+/* 非交互元素 — 不拦截鼠标点击（穿透到下层窗口） */
+.speech-bubble,
+.notification-bubble,
+.status-overlay {
+  pointer-events: none;
+}
+
+/* =====================================================
+   Sprite Sheet CSS Animation (V3 optional rendering path)
+   Reference: Petdex CSS steps() animation pattern
+   ===================================================== */
+
+.pet-sprite-sheet {
+  image-rendering: pixelated;
+  /* translateZ(0) forces GPU compositing so animation stays
+     off the main thread during scroll / repaint */
+  transform: translateZ(0);
+  will-change: background-position;
+}
+
+@keyframes pet-sheet-state {
+  from { background-position: 0 var(--sheet-row-y); }
+  to   { background-position: var(--sheet-end-x) var(--sheet-row-y); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-sprite-sheet {
+    animation: none !important;
+  }
 }
