@@ -140,6 +140,7 @@ function App() {
   }, [showChat]);
 
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("refresh-model", () => {
@@ -152,10 +153,15 @@ function App() {
           setRefreshKey((k) => k + 1);
         })();
       }).then((fn) => {
-        unlisten = fn;
+        if (disposed) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
       });
     }).catch(() => {});
     return () => {
+      disposed = true;
       unlisten?.();
     };
   }, [showChat]);

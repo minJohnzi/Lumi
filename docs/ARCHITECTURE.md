@@ -152,3 +152,48 @@ DesktopPet
 ```
 
 Bundled models belong to the application package and are not copied into SQLite. SQLite only records user choice and imported external model metadata.
+
+## 状态机和模型交互
+
+`PetState` 是全局的行为状态，不是某个渲染实现的内部状态。
+它只描述当前是 `idle / talking / thinking / happy / sleepy` 中的哪一段行为。
+
+```text
+user interaction / chat / time rule
+  -> usePetState
+  -> PetState
+  -> DesktopPet selects Live2D / Sprite / emoji
+  -> model component maps PetState to motions or frame rows
+```
+
+### 生命周期分层
+
+- `usePetState` 只负责状态切换、定时器和昼夜规则。
+- `DesktopPet` 只负责按配置选择 Live2D、Sprite 或 emoji 兜底。
+- `Live2DPet` 和 `SpritePet` 只读取 `PetState`，不直接改业务状态。
+- `ChatPanel` 和 `ContextMenu` 只能发事件或调用 IPC，不应知道具体渲染细节。
+
+### Live2D 映射
+
+- `motionResolver.ts` 把 `PetState` 映射到 motion group。
+- `ActionScheduler` 负责自动动作和节奏控制，但不修改 `PetState`。
+- `measureLive2DFit()` 会采样不同状态下的 bounds，用来生成窗口 fit。
+
+### Sprite 映射
+
+- `sprite.json` 直接定义每个 `PetState` 对应的行、帧数和循环时长。
+- `SpriteAnimator` 只处理帧切换，不关心状态语义。
+- `measureSpriteFit()` 读取 sprite sheet 边界，用来决定窗口大小。
+
+### 角色设定如何落地
+
+- 角色文档定义的是“性格和表演方向”，不是纯美术说明。
+- `琥珀` 偏低打扰、细节型陪伴，所以动作要收、轻、稳。
+- `路飞` 偏休息模式陪伴，所以动作可以更直白，但仍要保持桌面稳定。
+- 如果角色文档没有定义某个状态，就不要在模型层凭空新增动作。
+
+### 约束
+
+- 状态机只回答“现在是什么行为段”。
+- 模型只回答“怎么把这个行为段演出来”。
+- 任何新的 motion group、sprite 帧序、动作幅度，都应该先回到角色文档，再回到实现和配置。

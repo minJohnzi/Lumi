@@ -1,7 +1,9 @@
 import { useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { PhysicalPosition } from "@tauri-apps/api/dpi";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
-const TICK_MS = 16;
+const TICK_MS = 33;
 const FRICTION = 0.88;
 const MIN_VELOCITY = 65;
 const MAX_THROW_VELOCITY = 2200;
@@ -47,6 +49,7 @@ export function useDragPhysics() {
   const pendingDy = useRef(0);
   const rafScheduled = useRef(false);
   const activePointerId = useRef<number | null>(null);
+  const cachedWindowPos = useRef<{ x: number; y: number } | null>(null);
 
   const isDragging = () => dragging.current || isThrowing.current;
 
@@ -78,27 +81,26 @@ export function useDragPhysics() {
     };
   }, []);
 
-  const moveClamped = useCallback(async (dx: number, dy: number) => {
-    if (dx === 0 && dy === 0) {
-      return { x: 0, y: 0, hit_left: false, hit_right: false, hit_top: false, hit_bottom: false };
-    }
-
+  const moveWindowBy = useCallback(async (dx: number, dy: number) => {
+    if (dx === 0 && dy === 0) return;
     try {
-      return await invoke<ClampResult>("clamp_window_to_visible_frame", { dx, dy });
-    } catch {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      const { LogicalPosition } = await import("@tauri-apps/api/dpi");
       const win = getCurrentWindow();
-      const pos = await win.outerPosition();
-      await win.setPosition(new LogicalPosition(pos.x + Math.round(dx), pos.y + Math.round(dy)));
-      return {
-        x: pos.x + dx,
-        y: pos.y + dy,
-        hit_left: false,
-        hit_right: false,
-        hit_top: false,
-        hit_bottom: false,
-      };
+      const pos = cachedWindowPos.current ?? await win.outerPosition();
+      const next = { x: pos.x + Math.round(dx), y: pos.y + Math.round(dy) };
+      cachedWindowPos.current = next;
+      await win.setPosition(new PhysicalPosition(next.x, next.y));
+    } catch {
+      // Ignore transient window movement failures during drag frames.
+    }
+  }, []);
+
+  const clampToVisibleFrame = useCallback(async () => {
+    try {
+      await invoke<ClampResult>("clamp_window_to_visible_frame", { dx: 0, dy: 0 });
+    } catch {
+      // Best-effort safety clamp; dragging still works without it.
+    } finally {
+      cachedWindowPos.current = null;
     }
   }, []);
 
@@ -117,15 +119,13 @@ export function useDragPhysics() {
       if (elapsed > MAX_THROW_DURATION || speed < MIN_VELOCITY) {
         momentumTimer.current = null;
         isThrowing.current = false;
+        void clampToVisibleFrame();
         return;
       }
 
       const dx = velX * (TICK_MS / 1000);
       const dy = velY * (TICK_MS / 1000);
-      const result = await moveClamped(dx, dy);
-
-      if (result.hit_left || result.hit_right) velX = 0;
-      if (result.hit_top || result.hit_bottom) velY = 0;
+      await moveWindowBy(dx, dy);
 
       velX *= FRICTION;
       velY *= FRICTION;
@@ -134,7 +134,7 @@ export function useDragPhysics() {
     };
 
     momentumTimer.current = window.setTimeout(tick, TICK_MS);
-  }, [moveClamped, stopMomentum]);
+  }, [clampToVisibleFrame, moveWindowBy, stopMomentum]);
 
   const handleDragStart = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 || shouldIgnorePointer(e.target)) return;
@@ -147,6 +147,11 @@ export function useDragPhysics() {
     samples.current = [];
     pendingDx.current = 0;
     pendingDy.current = 0;
+    void getCurrentWindow().outerPosition().then((pos) => {
+      cachedWindowPos.current = { x: pos.x, y: pos.y };
+    }).catch(() => {
+      cachedWindowPos.current = null;
+    });
     recordSample(e.screenX, e.screenY);
     e.currentTarget.setPointerCapture(e.pointerId);
   }, [recordSample, stopMomentum]);
@@ -173,10 +178,10 @@ export function useDragPhysics() {
         const ddy = pendingDy.current;
         pendingDx.current = 0;
         pendingDy.current = 0;
-        void moveClamped(ddx, ddy);
+        void moveWindowBy(ddx, ddy);
       });
     }
-  }, [recordSample, moveClamped]);
+  }, [recordSample, moveWindowBy]);
 
   const handleDragEnd = useCallback((e?: React.PointerEvent) => {
     if (e && activePointerId.current !== e.pointerId) return;
@@ -189,8 +194,10 @@ export function useDragPhysics() {
     const velocity = computeVelocity();
     if (velocity && (Math.abs(velocity.x) > MIN_VELOCITY || Math.abs(velocity.y) > MIN_VELOCITY)) {
       startMomentumThrow(velocity.x, velocity.y);
+    } else {
+      void clampToVisibleFrame();
     }
-  }, [computeVelocity, startMomentumThrow]);
+  }, [clampToVisibleFrame, computeVelocity, startMomentumThrow]);
 
   const cleanup = useCallback(() => {
     dragging.current = false;
@@ -199,6 +206,7 @@ export function useDragPhysics() {
     samples.current = [];
     pendingDx.current = 0;
     pendingDy.current = 0;
+    cachedWindowPos.current = null;
   }, [stopMomentum]);
 
   return {

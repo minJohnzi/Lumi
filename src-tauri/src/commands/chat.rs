@@ -15,6 +15,10 @@ pub struct ChatResponse {
     pub reply: String,
 }
 
+fn preview_chars(value: &str, limit: usize) -> String {
+    value.chars().take(limit).collect()
+}
+
 #[tauri::command]
 pub async fn send_message(
     db: State<'_, Database>,
@@ -59,7 +63,9 @@ pub async fn send_message(
 
     // Save this conversation to memory as a summary
     let summary_key = format!("conv_{}", chrono::Utc::now().timestamp());
-    let summary = format!("用户: {}\nLumi: {}", &request.message[..request.message.len().min(100)], &reply[..reply.len().min(100)]);
+    let user_preview = preview_chars(&request.message, 100);
+    let reply_preview = preview_chars(&reply, 100);
+    let summary = format!("用户: {}\nLumi: {}", user_preview, reply_preview);
     crate::commands::memory::save_memory_inner(&db, &summary_key, &summary)?;
 
     Ok(ChatResponse { reply })

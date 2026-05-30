@@ -17,8 +17,6 @@
 
 ### 架构和技术债
 
-- [ ] 偏好主路径迁移到 Rust/SQLite：前端通过 IPC 读写 `preferences`，`localStorage` 只保留迁移期兼容。
-- [ ] API Key 迁移到 Rust 侧加密存储：设置页提交 key，聊天请求不再携带明文 key。
 - [ ] 继续拆分 `SpritePet.tsx` 的 Pixi 生命周期和 renderer 逻辑。
 - [ ] Rust `send_message` 复用 reqwest client。
 - [ ] 清理第三方渲染边界的 `any`，保留必要的兼容封装。
@@ -78,7 +76,7 @@
 - [x] SQLite：conversations / memories / preferences 表。
 - [x] 记忆注入 prompt：最近 5 条 memories。
 - [x] 对话后写入 memory 摘要。
-- [x] localStorage 偏好读写（迁移前实现）。
+- [x] 旧 `localStorage` 偏好一次性迁移到 Rust/SQLite。
 - [x] Live2D 渲染：Cubism 2/4。
 - [x] ActionScheduler 基础动作调度。
 - [x] Sprite sheet 渲染。
@@ -91,6 +89,8 @@
 - [x] 初步重构：`windowActions`、`useModelCatalog`、`spriteSheet`、`motionResolver`。
 - [x] `DesktopPet.tsx` 改为 state/event 驱动读取偏好，避免 render 阶段反复 `loadPrefs()`。
 - [x] 删除未使用的旧 `SettingsPanel.tsx`，统一设置入口到 `SettingsPage.tsx`。
+- [x] 偏好主路径迁移到 Rust/SQLite：前端通过 IPC 读写 `preferences`，`localStorage` 只保留一次性迁移兼容。
+- [x] API Key 迁移到 Rust 侧加密存储：设置页提交 key，聊天请求不再携带明文 key。
 
 ## Future Ideas
 
@@ -111,3 +111,4 @@
 - [x] Added imported model removal without deleting user files.
 - [x] Auto-save selected model after successful external import.
 - [x] Added bilingual settings UI with default Chinese and persisted `ui_language`.
+- [x] Documented how `PetState` drives Live2D motion mapping and sprite frame playback, and how character design constraints flow into model behavior.

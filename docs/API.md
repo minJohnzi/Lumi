@@ -13,7 +13,6 @@ invoke<{ reply: string }>("send_message", {
   request: {
     message: string;
     provider: "openai" | "anthropic" | "deepseek" | "local";
-    api_key: string;
     model: string;
   }
 })
@@ -21,6 +20,7 @@ invoke<{ reply: string }>("send_message", {
 
 副作用：
 
+- 非 local provider 会在 Rust 侧按 provider 从加密存储读取 API Key；请求参数不携带明文 key。
 - 读取最近 5 条 memory 注入 system prompt。
 - 将本次对话摘要写入 memories，key 为 `conv_<timestamp>`。
 
@@ -83,12 +83,48 @@ invoke<Array<{
 
 ## Preferences
 
-目标主路径为 Rust/SQLite preferences。当前代码仍有 `localStorage` 兼容路径，待迁移。
+主路径为 Rust/SQLite preferences。前端通过 `src/utils/prefs.ts` 调用 Tauri IPC 读写设置；`localStorage` 只用于旧 `lumi_prefs` 的一次性迁移，迁移成功后删除旧值。
+
+偏好字段不包含 `llm_api_key`，API Key 通过 Rust 侧加密存储单独读写。
 
 ### `get_preferences`
 
 ```ts
-invoke<Record<string, string>>("get_preferences")
+invoke<{
+  pet_name: string;
+  llm_provider: "openai" | "anthropic" | "deepseek" | "local";
+  llm_model: string;
+  ui_language: "zh" | "en";
+  screenshot_hide: boolean;
+  live2d_enabled: boolean;
+  model_id: string;
+  model_type: "live2d" | "sprite";
+  model_path: string;
+  model_name: string;
+  pet_scale: number;
+  always_on_top: boolean;
+}>("get_preferences")
+```
+
+### `save_preferences`
+
+```ts
+invoke("save_preferences", {
+  prefs: {
+    pet_name: string;
+    llm_provider: "openai" | "anthropic" | "deepseek" | "local";
+    llm_model: string;
+    ui_language: "zh" | "en";
+    screenshot_hide: boolean;
+    live2d_enabled: boolean;
+    model_id: string;
+    model_type: "live2d" | "sprite";
+    model_path: string;
+    model_name: string;
+    pet_scale: number;
+    always_on_top: boolean;
+  }
+})
 ```
 
 ### `set_preference`
@@ -102,9 +138,74 @@ invoke("set_preference", {
 
 ### API Key 存储
 
-API Key 不应作为普通 preference 明文持久化。目标方案是新增 Rust 侧加密存储接口，由设置页提交 key，聊天请求只传 provider/model 或 key 引用。
+API Key 不作为普通 preference 明文持久化。设置页通过 app settings 接口提交 key；聊天请求只传 provider/model，Rust 在 `send_message` 中读取对应 provider 的 key。
 
-当前代码尚未实现该接口，迁移任务见 `docs/TASKS.md`。
+### `get_app_settings`
+
+读取普通偏好和当前 provider 对应的 API Key。前端设置页使用该接口初始化表单。
+
+```ts
+invoke<{
+  prefs: {
+    pet_name: string;
+    llm_provider: "openai" | "anthropic" | "deepseek" | "local";
+    llm_model: string;
+    ui_language: "zh" | "en";
+    screenshot_hide: boolean;
+    live2d_enabled: boolean;
+    model_id: string;
+    model_type: "live2d" | "sprite";
+    model_path: string;
+    model_name: string;
+    pet_scale: number;
+    always_on_top: boolean;
+  };
+  llm_api_key: string;
+}>("get_app_settings")
+```
+
+### `save_app_settings`
+
+保存普通偏好，并把 `llm_api_key` 写入当前 `prefs.llm_provider` 对应的加密存储。
+
+```ts
+invoke("save_app_settings", {
+  settings: {
+    prefs: {
+      pet_name: string;
+      llm_provider: "openai" | "anthropic" | "deepseek" | "local";
+      llm_model: string;
+      ui_language: "zh" | "en";
+      screenshot_hide: boolean;
+      live2d_enabled: boolean;
+      model_id: string;
+      model_type: "live2d" | "sprite";
+      model_path: string;
+      model_name: string;
+      pet_scale: number;
+      always_on_top: boolean;
+    },
+    llm_api_key: string;
+  }
+})
+```
+
+### `get_api_key`
+
+```ts
+invoke<string | null>("get_api_key", {
+  provider: "openai" | "anthropic" | "deepseek" | "local",
+})
+```
+
+### `set_api_key`
+
+```ts
+invoke("set_api_key", {
+  provider: "openai" | "anthropic" | "deepseek" | "local",
+  api_key: string,
+})
+```
 
 ## System
 

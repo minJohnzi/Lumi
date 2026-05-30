@@ -21,9 +21,34 @@ test("pause keeps the current frame and resume restarts timing", () => {
   assert.equal(animator.tick(100), 1);
   animator.setPaused(true);
   assert.equal(animator.tick(250), 1);
-  animator.setPaused(false);
+  animator.setPaused(false, 260);
   assert.equal(animator.tick(260), 1);
   assert.equal(animator.tick(360), 2);
+});
+
+test("frameCount 0 is clamped to 1 and never advances", () => {
+  const animator = new SpriteAnimator(0, 200);
+
+  assert.equal(animator.currentFrame, 0);
+  assert.equal(animator.tick(0), 0);
+  assert.equal(animator.tick(1000), 0);
+});
+
+test("frameCount 1 stays on frame 0 forever", () => {
+  const animator = new SpriteAnimator(1, 500);
+
+  assert.equal(animator.currentFrame, 0);
+  assert.equal(animator.tick(1000), 0);
+  assert.equal(animator.tick(5000), 0);
+});
+
+test("totalDurationMs 0 falls back to a safe default", () => {
+  const animator = new SpriteAnimator(4, 0);
+
+  assert.equal(animator.currentFrame, 0);
+  assert.equal(animator.tick(0), 0);
+  assert.equal(animator.tick(15), 0);
+  assert.equal(animator.tick(16), 1);
 });
 
 test("reset restores the first frame and new timing parameters", () => {

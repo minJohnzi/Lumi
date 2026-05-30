@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@iconify/react";
 import type { UserPreferences } from "../types";
 import { bootstrapPrefs, loadApiKey, savePrefs, DEFAULT_PREFS } from "../utils/prefs";
@@ -563,6 +563,7 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<UserPreferences>(() => ({ ...DEFAULT_PREFS }));
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<Tab>("appearance");
+  const savedTimerRef = useRef<number | null>(null);
   const ui = COPY[prefs.ui_language === "en" ? "en" : "zh"];
   const {
     models,
@@ -584,6 +585,14 @@ export default function SettingsPage() {
       setSelectedModel(loaded.model_path);
     });
   }, [setSelectedModel]);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current !== null) {
+        clearTimeout(savedTimerRef.current);
+      }
+    };
+  }, []);
 
   const defaultModel = useMemo(
     () => models.find((m) => m.id === defaultModelId) ?? models[0],
@@ -646,7 +655,13 @@ export default function SettingsPage() {
 
   const flashSaved = useCallback(() => {
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    if (savedTimerRef.current !== null) {
+      clearTimeout(savedTimerRef.current);
+    }
+    savedTimerRef.current = window.setTimeout(() => {
+      savedTimerRef.current = null;
+      setSaved(false);
+    }, 1500);
   }, []);
 
   const refreshModel = useCallback(async () => {

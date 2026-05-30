@@ -75,8 +75,8 @@ pub fn list_models() -> Result<Vec<ModelEntry>, String> {
 
 #[tauri::command]
 pub fn list_imported_models(db: State<Database>) -> Result<Vec<ModelEntry>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let entries = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id, name, path, model_type, source
@@ -114,9 +114,12 @@ pub fn list_imported_models(db: State<Database>) -> Result<Vec<ModelEntry>, Stri
         }
     }
 
-    for id in stale_ids {
-        conn.execute("DELETE FROM model_catalog WHERE id = ?1", rusqlite::params![id])
-            .map_err(|e| e.to_string())?;
+    if !stale_ids.is_empty() {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        for id in stale_ids {
+            conn.execute("DELETE FROM model_catalog WHERE id = ?1", rusqlite::params![id])
+                .map_err(|e| e.to_string())?;
+        }
     }
 
     Ok(valid_entries)

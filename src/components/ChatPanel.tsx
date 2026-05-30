@@ -15,10 +15,19 @@ export default function ChatPanel({ onClose, onStateChange, prefs }: ChatPanelPr
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const happyTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (happyTimerRef.current !== null) {
+        clearTimeout(happyTimerRef.current);
+      }
+    };
+  }, []);
 
   async function sendMessage() {
     const text = input.trim();
@@ -52,7 +61,13 @@ export default function ChatPanel({ onClose, onStateChange, prefs }: ChatPanelPr
       };
       setMessages((prev) => [...prev, reply]);
       onStateChange("talking");
-      setTimeout(() => onStateChange("happy"), 2000);
+      if (happyTimerRef.current !== null) {
+        clearTimeout(happyTimerRef.current);
+      }
+      happyTimerRef.current = window.setTimeout(() => {
+        happyTimerRef.current = null;
+        onStateChange("happy");
+      }, 2000);
     } catch (err) {
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),

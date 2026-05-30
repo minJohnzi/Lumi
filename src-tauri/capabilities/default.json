@@ -2,10 +2,11 @@
   "$schema": "https://github.com/nicegui/tauri-v2-nicegui-template/raw/main/src-tauri/capabilities/default.json",
   "identifier": "default",
   "description": "Default capabilities for Lumi",
-  "windows": ["*"],
+  "windows": ["main", "settings"],
   "permissions": [
-    "core:default",
-    "shell:allow-open",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit",
     "core:window:allow-set-position",
     "core:window:allow-outer-position",
     "core:window:allow-outer-size",
@@ -14,7 +15,6 @@
     "core:window:allow-hide",
     "core:window:allow-start-dragging",
     "core:window:allow-set-size",
-    "core:window:allow-inner-size",
-    "core:webview:allow-create-webview-window"
+    "core:window:allow-inner-size"
   ]
 }

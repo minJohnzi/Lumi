@@ -20,8 +20,8 @@
 
 - 主应用是 Tauri 2 + React 19 + TypeScript + Vite。
 - 渲染层支持 Live2D 和 Sprite sheet 两条路径，失败时回退 emoji。
-- 偏好目标主路径为 Rust/SQLite `preferences`，当前代码仍有 `localStorage` 迁移期兼容路径。
-- API Key 目标方案为 Rust 侧加密存储，当前代码仍待迁移。
+- 偏好主路径为 Rust/SQLite `preferences`，`localStorage` 只保留旧 `lumi_prefs` 的一次性迁移兼容。
+- API Key 已迁移到 Rust 侧加密存储；聊天请求不再携带明文 key。
 - 记忆与会话存入 SQLite。
 - 跨窗口刷新使用 Tauri event：`refresh-model`。
 - 当前可验证命令：`tsc -b`、`vite build`、`cargo check`。

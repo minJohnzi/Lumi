@@ -14,7 +14,12 @@ export class SpriteAnimator {
 
   constructor(frameCount: number, totalDurationMs: number) {
     this.frameCount = Math.max(1, frameCount);
-    this.frameDuration = totalDurationMs / this.frameCount;
+    this.frameDuration = this.resolveFrameDuration(totalDurationMs);
+  }
+
+  private resolveFrameDuration(totalDurationMs: number): number {
+    const duration = totalDurationMs / this.frameCount;
+    return Number.isFinite(duration) && duration > 0 ? duration : 16;
   }
 
   /** Advance to the next frame if enough time has elapsed. Returns current frame index. */
@@ -35,7 +40,7 @@ export class SpriteAnimator {
       this.frameCount = Math.max(1, frameCount);
     }
     if (totalDurationMs !== undefined) {
-      this.frameDuration = totalDurationMs / this.frameCount;
+      this.frameDuration = this.resolveFrameDuration(totalDurationMs);
     }
   }
 
@@ -43,9 +48,9 @@ export class SpriteAnimator {
     return this._paused;
   }
 
-  setPaused(p: boolean) {
+  setPaused(p: boolean, now?: number) {
     this._paused = p;
-    if (!p) this.lastAdvance = typeof performance !== "undefined" ? performance.now() : 0;
+    if (!p) this.lastAdvance = now ?? (typeof performance !== "undefined" ? performance.now() : 0);
   }
 
   get currentFrame() {
