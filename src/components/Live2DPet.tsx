@@ -6,6 +6,8 @@ import { findMotion } from "../live2d/motionResolver";
 import type { Live2DModelLike, PixiAppLike } from "../live2d/live2dTypes";
 import { measureLive2DFit, type FitMetadata } from "../services/modelBounds";
 import { live2dModelUrl, modelAssetUrl, modelDirectoryPath, normalizeModelPath } from "../services/modelPaths";
+import { logger } from "../utils/logger";
+import { useRenderRecovery } from "../hooks/useRenderRecovery";
 
 interface Live2DPetProps {
   state: PetState;
@@ -37,9 +39,26 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
   stateRef.current = state;
 
   const log = useCallback((msg: string) => {
-    console.log("[Live2D]", msg);
     onStatus(msg);
   }, [onStatus]);
+
+  const reviveRenderer = useCallback(() => {
+    const app = appRef.current;
+    const model = modelRef.current;
+    if (!app || !model) return false;
+
+    app.ticker?.start?.();
+    app.renderer?.render?.(app.stage);
+    return true;
+  }, []);
+
+  const recoveryVersion = useRenderRecovery({
+    canvasRef,
+    appRef,
+    rendererName: "live2d",
+    modelPath,
+    revive: reviveRenderer,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +71,7 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
         const PIXI = await import("pixi.js");
         (window as Window & { PIXI?: unknown }).PIXI = PIXI;
         const normalizedModelPath = normalizeModelPath(modelPath);
+        logger.debug("live2d", "loading live2d model", { path: normalizedModelPath });
 
         const isCubism4 = normalizedModelPath.endsWith(".model3.json");
         const mod = isCubism4
@@ -74,6 +94,7 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
         appRef.current = app as PixiAppLike;
 
         if ((app.renderer as { type?: number }).type !== 1) {
+          logger.warn("live2d", "webgl renderer unavailable", { path: normalizedModelPath });
           onLoadError();
           return;
         }
@@ -119,8 +140,14 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
         schedulerRef.current = scheduler;
         app.ticker.add(() => scheduler.tickBreath());
 
+        logger.info("live2d", "live2d model loaded", {
+          path: normalizedModelPath,
+          width: fit.width,
+          height: fit.height,
+        });
         onStatus("");
       } catch (err) {
+        logger.error("live2d", "live2d model load failed", { path: modelPath, error: err });
         log(`FAIL: ${String(err)}`);
         onLoadError();
       }
@@ -134,10 +161,10 @@ export default function Live2DPet({ state, modelPath, onLoadError, onStatus }: L
       schedulerRef.current = null;
       modelRef.current?.destroy?.();
       modelRef.current = null;
-      appRef.current?.destroy?.(true, { children: true, texture: true, baseTexture: true });
+      appRef.current?.destroy?.(false, { children: true, texture: true, baseTexture: true });
       appRef.current = null;
     };
-  }, [log, modelPath, onLoadError, onStatus]);
+  }, [log, modelPath, onLoadError, onStatus, recoveryVersion]);
 
   useEffect(() => {
     const model = modelRef.current;

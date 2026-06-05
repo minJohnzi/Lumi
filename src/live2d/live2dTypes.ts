@@ -27,7 +27,11 @@ export interface Live2DModelLike {
 }
 
 export interface PixiAppLike {
-  renderer: { type?: number };
+  renderer: {
+    type?: number;
+    resize?: (width: number, height: number) => void;
+    render?: (stage: unknown) => void;
+  };
   stage: { addChild: (child: unknown) => void };
   ticker: { add: (fn: () => void) => void; stop?: () => void; start?: () => void };
   destroy?: (removeView?: boolean, options?: { children?: boolean; texture?: boolean; baseTexture?: boolean }) => void;

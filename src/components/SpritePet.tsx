@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { PetState, SpriteConfigV3 } from "../types";
 import { isSpriteConfigV3 } from "../live2d/spriteSheet";
 import { renderSpriteSheet, type SpriteSheetRuntime } from "../live2d/spriteRenderer";
 import type { WindowFitMetrics } from "../services/windowActions";
 import { measureSpriteFit } from "../services/modelBounds";
 import { modelAssetUrl, normalizeModelPath } from "../services/modelPaths";
+import { logger } from "../utils/logger";
+import { useRenderRecovery } from "../hooks/useRenderRecovery";
 
 interface SpritePetProps {
   state: PetState;
@@ -25,9 +27,30 @@ export default function SpritePet({ state, modelPath, onLoadError, onStatus, onF
   stateRef.current = state;
 
   const log = (msg: string) => {
-    console.log("[Sprite]", msg);
     onStatus(msg);
   };
+
+  const reviveRenderer = useCallback(() => {
+    const app = appRef.current;
+    const sheetData = sheetDataRef.current;
+    if (!app || !sheetData) return false;
+
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    for (const animator of sheetData.animators) {
+      animator.setPaused(reducedMotionRef.current, now);
+    }
+    app.ticker?.start?.();
+    app.renderer?.render?.(app.stage);
+    return true;
+  }, []);
+
+  const recoveryVersion = useRenderRecovery({
+    canvasRef,
+    appRef,
+    rendererName: "sprite",
+    modelPath,
+    revive: reviveRenderer,
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -49,6 +72,7 @@ export default function SpritePet({ state, modelPath, onLoadError, onStatus, onF
       try {
         const cleanPath = normalizeModelPath(modelPath);
         const configUrl = modelAssetUrl(cleanPath, "sprite.json");
+        logger.debug("sprite", "loading sprite config", { path: cleanPath });
         log(`Loading: ${configUrl}`);
 
         const res = await fetch(configUrl);
@@ -87,6 +111,7 @@ export default function SpritePet({ state, modelPath, onLoadError, onStatus, onF
         appRef.current = app;
 
         if ((app.renderer as any).type !== 1) {
+          logger.warn("sprite", "webgl renderer unavailable", { path: cleanPath });
           log("FAIL: WebGL not available");
           onLoadError();
           return;
@@ -107,10 +132,12 @@ export default function SpritePet({ state, modelPath, onLoadError, onStatus, onF
         });
 
         if (!cancelled) {
+          logger.info("sprite", "sprite model loaded", { path: cleanPath, width: size[0], height: size[1] });
           log("OK");
           onStatus("");
         }
       } catch (err) {
+        logger.error("sprite", "sprite model load failed", { path: modelPath, error: err });
         log(`FAIL: ${String(err)}`);
         onLoadError();
       }
@@ -118,30 +145,19 @@ export default function SpritePet({ state, modelPath, onLoadError, onStatus, onF
 
     void init();
 
-    function onVisibility() {
-      if (!appRef.current) return;
-      if (document.hidden) {
-        appRef.current.ticker?.stop?.();
-      } else {
-        appRef.current.ticker?.start?.();
-      }
-    }
-    document.addEventListener("visibilitychange", onVisibility);
-
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", onVisibility);
       sheetDataRef.current = null;
       if (appRef.current) {
         try {
-          appRef.current.destroy?.(true, { children: true, texture: true, baseTexture: true });
+          appRef.current.destroy?.(false, { children: true, texture: true, baseTexture: true });
         } catch {
           // ignore
         }
         appRef.current = null;
       }
     };
-  }, [modelPath, onFitChange, onLoadError, onStatus]);
+  }, [modelPath, onFitChange, onLoadError, onStatus, recoveryVersion]);
 
   useEffect(() => {
     const config = configRef.current;
